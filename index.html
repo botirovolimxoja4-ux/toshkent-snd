@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v23";
+const BUILD = "v24";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function sig(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) {
@@ -407,12 +407,12 @@ function toGuest(text) {
     return { questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
 }
 const QSCHEMA = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } };
-const GROUPSCHEMA = { type: "ARRAY", items: { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } } };
+const GROUPSCHEMA = { type: "OBJECT", properties: { guests: { type: "ARRAY", items: { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } } } } };
 async function genGroup(promptText, guests) {
     try {
         const t = await callAI(promptText, { json: true, schema: GROUPSCHEMA });
         let v = parseAny(t);
-        let arr = Array.isArray(v) ? v : (v && Array.isArray(v.mehmonlar) ? v.mehmonlar : (v && Array.isArray(v.guests) ? v.guests : []));
+        let arr = (v && Array.isArray(v.guests)) ? v.guests : (Array.isArray(v) ? v : (v && Array.isArray(v.mehmonlar) ? v.mehmonlar : []));
         return guests.map(function (g, i) {
             const item = (arr && arr[i]) || {};
             let q = Array.isArray(item.questions) ? item.questions.map(String) : (Array.isArray(item.savollar) ? item.savollar.map(String) : []);
@@ -571,7 +571,7 @@ function App() {
         const rules = "Muhim qoidalar (qat'iy amal qil):\n- ENG MUHIM QOIDA: Har bir savol AYNAN SHU mehmonning roli/lavozimiga va shaxsiy nuqtai nazariga QAT'IY mos bo'lsin. Mehmon o'z o'rnidan, o'z tajribasidan turib bemalol javob bera oladigan savol bo'lsin.\n- Rolni to'g'ri talqin qil: agar mehmon KASB EGASI/mutaxassis bo'lsa (mas. advokat, sudya, shifokor, olim, rahbar) — kasbiy bilimi va amaliyotiga oid savol ber. Agar mehmon JARAYON ISHTIROKCHISI yoki shu holatni boshidan kechirgan shaxs bo'lsa (mas. mahkum, jabrlanuvchi, fuqaro, bemor, talaba, guvoh) — uning SHAXSIY tajribasi, hissiyoti va fikriga oid savol ber; unga mutaxassislik talab qiladigan savolni BERMA.\n- Savollar TANQIDIY yoki ayblovchi bo'lmasin; iliq, hurmatli; bir-birini takrorlamasin.\n- HAR BIR SAVOL QISQA: bitta gap, 25 so'zdan oshmasin. Har mehmonga AYNAN 5 ta savol.";
         const ctx = thesis.trim() ? "Quyidagi TEZIS asosida, har bir mehmonning roli/lavozimi NUQTAI NAZARIDAN javob berilishi mumkin bo'lgan savollar tuz.\n\nTEZIS:\n" + thesis : "Tezis berilmagan. \"" + (topic || "—") + "\" mavzusi bo'yicha, har bir mehmonning roli/lavozimi NUQTAI NAZARIDAN savollar tuz.";
         const gl = list.map((g, i) => ((i + 1) + ") Ismi: " + (g.name || "mehmon") + " — Lavozimi: " + (g.title || "—"))).join("\n");
-        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\".\n" + ctx + "\n\n" + rules + "\n\nMEHMONLAR (tartib QAT'IY saqlansin):\n" + gl + "\n\nHar bir mehmon uchun AYNAN 5 ta savol va 2-3 ta aniq fakt tayyorla. Javobni FAQAT JSON MASSIV ko'rinishida ber: massivning har bir elementi yuqoridagi mehmonga AYNAN SHU TARTIBDA mos kelsin, massiv uzunligi " + list.length + " ta bo'lsin. Format:\n[{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\"]}]\nMatn " + lang + ".";
+        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\".\n" + ctx + "\n\n" + rules + "\n\nMEHMONLAR (tartib QAT'IY saqlansin):\n" + gl + "\n\nHar bir mehmon uchun AYNAN 5 ta savol va 2-3 ta aniq fakt tayyorla. Javobni FAQAT JSON OBYEKT ko'rinishida ber; ichida \"guests\" massivi bo'lsin, uning har elementi yuqoridagi mehmonga AYNAN SHU TARTIBDA mos kelsin, uzunligi " + list.length + " ta bo'lsin. Format:\n{\"guests\":[{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\"]}]}\nMatn " + lang + ".";
     };
     const infoPrompt = () => {
         const lang = "o'zbek tilida (lotin alifbosida)";
@@ -622,8 +622,16 @@ function App() {
             const groupResults = await mapPool(groups, 3, async (grp) => { const arr = await genGroup(promptForGroup(grp), grp); bump(); return arr; });
             groupResults.forEach(arr => { (arr || []).forEach(r => { if (r)
                 resultById[r.id] = r; }); });
-            // safety net: any guest still empty -> individual precise request
-            const stillEmpty = uncached.filter(g => !(resultById[g.id] && resultById[g.id].questions && resultById[g.id].questions.length));
+            // if quota/429 is the cause, STOP here — don't burn remaining quota with a storm of fallback calls
+            const quotaHit = /HTTP 429|quota|RESOURCE_EXHAUSTED/i.test(LAST_AI_ERROR || "");
+            const emptyNow = uncached.filter(g => !(resultById[g.id] && resultById[g.id].questions && resultById[g.id].questions.length));
+            if (quotaHit && emptyNow.length > 0) {
+                setBusy(false);
+                setErrMsg("Bepul kunlik limit tugagan (429). Bugun juda ko'p sinov qilindi. Yechim: YANGI LOYIHADA yangi API kalit oling yoki limit tiklanishini kuting. Model: " + (LAST_MODEL_OK || LS.get("snd_model", "")));
+                return;
+            }
+            // safety net: any guest still empty -> individual precise request (only when NOT a quota problem)
+            const stillEmpty = emptyNow;
             if (stillEmpty.length) {
                 await mapPool(stillEmpty, 2, async (g) => { try {
                     const r = await genGuest((gg) => promptFor(gg), g);
