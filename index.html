@@ -7,9 +7,8 @@
 <title>Toshkent SND — Efir yordamchisi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
@@ -47,399 +46,619 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets="react">
+<script>window.addEventListener("error",function(e){var r=document.getElementById("root");if(r&&!r.hasChildNodes()){r.innerHTML='<div style="color:#EAF1F9;font-family:system-ui,sans-serif;padding:26px;line-height:1.7;max-width:520px;margin:40px auto"><b style=\'font-size:18px\'>Yuklashda muammo</b><br><span style="color:#93A7C0;font-size:13px">'+(e&&e.message?e.message:"")+'</span><br><br>Internetga ulanishni tekshiring va sahifani yangilang (F5). Muammo davom etsa, VPN orqali urinib ko\'ring.</div>';}});</script>
+<script>
+"use strict";
 const { useState, useEffect, useRef } = React;
-
-const C = { bg:"#0A1322",bg2:"#0E1B2E",panel:"#12233B",panelSoft:"#172A46",line:"#263B54",text:"#EAF1F9",muted:"#93A7C0",faint:"#6B819C",qiz:"#FF7D93",yigit:"#4CC7F2",amber:"#F6B23D",good:"#5FD08A",bad:"#FF6B6B" };
-const uid = () => Math.random().toString(36).slice(2,10);
-const inStyle = { width:"100%",background:C.bg2,border:"1px solid "+C.line,borderRadius:11,padding:"12px 13px",fontSize:14.5,color:C.text,fontFamily:"Inter,sans-serif" };
-
+const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
+const uid = () => Math.random().toString(36).slice(2, 10);
+const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
 const LS = {
-  get(k,def){ try{ const v=localStorage.getItem(k); return v==null?def:JSON.parse(v);}catch(e){return def;} },
-  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} },
+    get(k, def) { try {
+        const v = localStorage.getItem(k);
+        return v == null ? def : JSON.parse(v);
+    }
+    catch (e) {
+        return def;
+    } },
+    set(k, v) { try {
+        localStorage.setItem(k, JSON.stringify(v));
+    }
+    catch (e) { } },
 };
-
 /* ---------- transliteration ---------- */
-function toCyr(t){ if(!t) return t;
-  let s=String(t).replace(/[\u02BB\u02BC\u2018\u2019`]/g,"'");
-  s=s.replace(/O'/g,"Ў").replace(/o'/g,"ў").replace(/G'/g,"Ғ").replace(/g'/g,"ғ");
-  const dg=[["yo","ё"],["yu","ю"],["ya","я"],["ye","е"],["sh","ш"],["ch","ч"],["ts","ц"]];
-  const sg={a:"а",b:"б",c:"с",d:"д",e:"е",f:"ф",g:"г",h:"ҳ",i:"и",j:"ж",k:"к",l:"л",m:"м",n:"н",o:"о",p:"п",q:"қ",r:"р",s:"с",t:"т",u:"у",v:"в",w:"в",x:"х",y:"й",z:"з","'":"ъ"};
-  let res="",i=0; const low=s.toLowerCase();
-  while(i<s.length){ let m=false;
-    for(const [lat,cyr] of dg){ if(low.substr(i,lat.length)===lat){ const seg=s.substr(i,lat.length);
-      const allUp=seg===seg.toUpperCase()&&seg!==seg.toLowerCase();
-      const fUp=seg[0]===seg[0].toUpperCase()&&seg[0]!==seg[0].toLowerCase();
-      res+= allUp?cyr.toUpperCase():(fUp?cyr[0].toUpperCase()+cyr.slice(1):cyr); i+=lat.length;m=true;break; } }
-    if(m) continue;
-    const ch=s[i],lc=low[i];
-    if(sg[lc]!==undefined){ const c=sg[lc]; res+=(ch!==lc)?c.toUpperCase():c; } else res+=ch; i++;
-  } return res;
+function toCyr(t) {
+    if (!t)
+        return t;
+    let s = String(t).replace(/[\u02BB\u02BC\u2018\u2019`]/g, "'");
+    s = s.replace(/O'/g, "Ў").replace(/o'/g, "ў").replace(/G'/g, "Ғ").replace(/g'/g, "ғ");
+    const dg = [["yo", "ё"], ["yu", "ю"], ["ya", "я"], ["ye", "е"], ["sh", "ш"], ["ch", "ч"], ["ts", "ц"]];
+    const sg = { a: "а", b: "б", c: "с", d: "д", e: "е", f: "ф", g: "г", h: "ҳ", i: "и", j: "ж", k: "к", l: "л", m: "м", n: "н", o: "о", p: "п", q: "қ", r: "р", s: "с", t: "т", u: "у", v: "в", w: "в", x: "х", y: "й", z: "з", "'": "ъ" };
+    let res = "", i = 0;
+    const low = s.toLowerCase();
+    while (i < s.length) {
+        let m = false;
+        for (const [lat, cyr] of dg) {
+            if (low.substr(i, lat.length) === lat) {
+                const seg = s.substr(i, lat.length);
+                const allUp = seg === seg.toUpperCase() && seg !== seg.toLowerCase();
+                const fUp = seg[0] === seg[0].toUpperCase() && seg[0] !== seg[0].toLowerCase();
+                res += allUp ? cyr.toUpperCase() : (fUp ? cyr[0].toUpperCase() + cyr.slice(1) : cyr);
+                i += lat.length;
+                m = true;
+                break;
+            }
+        }
+        if (m)
+            continue;
+        const ch = s[i], lc = low[i];
+        if (sg[lc] !== undefined) {
+            const c = sg[lc];
+            res += (ch !== lc) ? c.toUpperCase() : c;
+        }
+        else
+            res += ch;
+        i++;
+    }
+    return res;
 }
-function toLat(t){ if(!t) return t;
-  const map={а:"a",б:"b",в:"v",г:"g",ғ:"g'",д:"d",е:"e",ё:"yo",ж:"j",з:"z",и:"i",й:"y",к:"k",қ:"q",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ў:"o'",ф:"f",х:"x",ҳ:"h",ц:"ts",ч:"ch",ш:"sh",щ:"sh",ъ:"'",ы:"i",ь:"",э:"e",ю:"yu",я:"ya"};
-  let res=""; for(const ch of String(t)){ const lc=ch.toLowerCase(); if(map[lc]!==undefined){ let o=map[lc]; if(ch!==lc&&o) o=o.charAt(0).toUpperCase()+o.slice(1); res+=o; } else res+=ch; } return res;
+function toLat(t) {
+    if (!t)
+        return t;
+    const map = { а: "a", б: "b", в: "v", г: "g", ғ: "g'", д: "d", е: "e", ё: "yo", ж: "j", з: "z", и: "i", й: "y", к: "k", қ: "q", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ў: "o'", ф: "f", х: "x", ҳ: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sh", ъ: "'", ы: "i", ь: "", э: "e", ю: "yu", я: "ya" };
+    let res = "";
+    for (const ch of String(t)) {
+        const lc = ch.toLowerCase();
+        if (map[lc] !== undefined) {
+            let o = map[lc];
+            if (ch !== lc && o)
+                o = o.charAt(0).toUpperCase() + o.slice(1);
+            res += o;
+        }
+        else
+            res += ch;
+    }
+    return res;
 }
-const convert=(t,tg)=>tg==="cyr"?toCyr(t):toLat(t);
-
+const convert = (t, tg) => tg === "cyr" ? toCyr(t) : toLat(t);
 /* ---------- pdf.js ---------- */
-let pdfPromise=null;
-function loadPdfJs(){ if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib); if(pdfPromise) return pdfPromise;
-  pdfPromise=new Promise((res,rej)=>{ const s=document.createElement("script"); s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    s.onload=()=>{ try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }catch(e){} res(window.pdfjsLib); };
-    s.onerror=()=>rej(new Error("pdfjs")); document.head.appendChild(s); }); return pdfPromise; }
-async function extractPdfText(file){ const lib=await loadPdfJs(); const buf=await file.arrayBuffer(); const pdf=await lib.getDocument({data:buf}).promise;
-  let out=""; for(let p=1;p<=pdf.numPages;p++){ const page=await pdf.getPage(p); const tc=await page.getTextContent(); out+=tc.items.map(it=>it.str).join(" ")+"\n\n"; } return out.trim(); }
-
+let pdfPromise = null;
+function loadPdfJs() {
+    if (window.pdfjsLib)
+        return Promise.resolve(window.pdfjsLib);
+    if (pdfPromise)
+        return pdfPromise;
+    pdfPromise = new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+        s.onload = () => { try {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        }
+        catch (e) { } res(window.pdfjsLib); };
+        s.onerror = () => rej(new Error("pdfjs"));
+        document.head.appendChild(s);
+    });
+    return pdfPromise;
+}
+async function extractPdfText(file) {
+    const lib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const pdf = await lib.getDocument({ data: buf }).promise;
+    let out = "";
+    for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        out += tc.items.map(it => it.str).join(" ") + "\n\n";
+    }
+    return out.trim();
+}
 /* ---------- AI (Anthropic direct browser) ---------- */
-async function callAI(prompt){
-  const key=LS.get("snd_apikey",""); const model=LS.get("snd_model","claude-sonnet-5");
-  if(!key) throw new Error("NOKEY");
-  const res=await fetch("https://api.anthropic.com/v1/messages",{ method:"POST",
-    headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model,max_tokens:1200,messages:[{role:"user",content:prompt}]}) });
-  if(!res.ok){ const t=await res.text().catch(()=> ""); throw new Error("API "+res.status+" "+t.slice(0,140)); }
-  const data=await res.json();
-  return (data.content||[]).filter(b=>b&&b.type==="text").map(b=>b.text).join("\n");
+async function callAI(prompt) {
+    const key = LS.get("snd_apikey", "");
+    const model = LS.get("snd_model", "claude-sonnet-5");
+    if (!key)
+        throw new Error("NOKEY");
+    const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        body: JSON.stringify({ model, max_tokens: 1200, messages: [{ role: "user", content: prompt }] }) });
+    if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error("API " + res.status + " " + t.slice(0, 140));
+    }
+    const data = await res.json();
+    return (data.content || []).filter(b => b && b.type === "text").map(b => b.text).join("\n");
 }
-function parseAny(text){ if(!text) return null; let t=String(text).replace(/```json/gi,"").replace(/```/g,"").trim();
-  try{return JSON.parse(t);}catch(e){}
-  const iA=t.indexOf("["),iO=t.indexOf("{"); let start=-1,open="[";
-  if(iA>=0&&(iO<0||iA<iO)){start=iA;open="[";} else if(iO>=0){start=iO;open="{";}
-  if(start<0) return null; const close=open==="["?"]":"}"; let depth=0,end=-1,inStr=false,esc=false;
-  for(let i=start;i<t.length;i++){ const ch=t[i]; if(esc){esc=false;continue;} if(ch==="\\"){esc=true;continue;} if(ch==='"') inStr=!inStr; if(inStr) continue; if(ch===open) depth++; else if(ch===close){depth--; if(depth===0){end=i;break;}} }
-  if(end<0) return null; try{return JSON.parse(t.slice(start,end+1));}catch(e){return null;}
+function parseAny(text) {
+    if (!text)
+        return null;
+    let t = String(text).replace(/```json/gi, "").replace(/```/g, "").trim();
+    try {
+        return JSON.parse(t);
+    }
+    catch (e) { }
+    const iA = t.indexOf("["), iO = t.indexOf("{");
+    let start = -1, open = "[";
+    if (iA >= 0 && (iO < 0 || iA < iO)) {
+        start = iA;
+        open = "[";
+    }
+    else if (iO >= 0) {
+        start = iO;
+        open = "{";
+    }
+    if (start < 0)
+        return null;
+    const close = open === "[" ? "]" : "}";
+    let depth = 0, end = -1, inStr = false, esc = false;
+    for (let i = start; i < t.length; i++) {
+        const ch = t[i];
+        if (esc) {
+            esc = false;
+            continue;
+        }
+        if (ch === "\\") {
+            esc = true;
+            continue;
+        }
+        if (ch === '"')
+            inStr = !inStr;
+        if (inStr)
+            continue;
+        if (ch === open)
+            depth++;
+        else if (ch === close) {
+            depth--;
+            if (depth === 0) {
+                end = i;
+                break;
+            }
+        }
+    }
+    if (end < 0)
+        return null;
+    try {
+        return JSON.parse(t.slice(start, end + 1));
+    }
+    catch (e) {
+        return null;
+    }
 }
-function toGuest(text){ const v=parseAny(text); let q=[],f=[];
-  if(Array.isArray(v)) q=v.map(String);
-  else if(v){ q=Array.isArray(v.questions)?v.questions.map(String):(Array.isArray(v.savollar)?v.savollar.map(String):[]); f=Array.isArray(v.facts)?v.facts.map(String):(Array.isArray(v.faktlar)?v.faktlar.map(String):[]); }
-  return { questions:q.filter(Boolean).slice(0,5), facts:f.filter(Boolean).slice(0,3) }; }
-function toInfos(text){ const v=parseAny(text); let bl=[];
-  if(Array.isArray(v)) bl=v; else if(v&&Array.isArray(v.blocks)) bl=v.blocks; else if(v&&Array.isArray(v.bloklar)) bl=v.bloklar;
-  const host=h=>(String(h||"").toLowerCase().trim().startsWith("q")?"qiz":"yigit");
-  return bl.slice(0,3).map(b=>{ let raw=Array.isArray(b)?b:(b&&(b.lines||b.qatorlar))||[];
-    const lines=raw.map(l=>({host:host(l&&(l.host||l.kim)),text:String((l&&(l.text||l.matn))||"").trim()})).filter(l=>l.text);
-    return {id:uid(),lines,done:false}; }).filter(b=>b.lines.length); }
-
+function toGuest(text) {
+    const v = parseAny(text);
+    let q = [], f = [];
+    if (Array.isArray(v))
+        q = v.map(String);
+    else if (v) {
+        q = Array.isArray(v.questions) ? v.questions.map(String) : (Array.isArray(v.savollar) ? v.savollar.map(String) : []);
+        f = Array.isArray(v.facts) ? v.facts.map(String) : (Array.isArray(v.faktlar) ? v.faktlar.map(String) : []);
+    }
+    return { questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
+}
+function toInfos(text) {
+    const v = parseAny(text);
+    let bl = [];
+    if (Array.isArray(v))
+        bl = v;
+    else if (v && Array.isArray(v.blocks))
+        bl = v.blocks;
+    else if (v && Array.isArray(v.bloklar))
+        bl = v.bloklar;
+    const host = h => (String(h || "").toLowerCase().trim().startsWith("q") ? "qiz" : "yigit");
+    return bl.slice(0, 3).map(b => {
+        let raw = Array.isArray(b) ? b : (b && (b.lines || b.qatorlar)) || [];
+        const lines = raw.map(l => ({ host: host(l && (l.host || l.kim)), text: String((l && (l.text || l.matn)) || "").trim() })).filter(l => l.text);
+        return { id: uid(), lines, done: false };
+    }).filter(b => b.lines.length);
+}
 /* ---------- live store (Firebase or local) ---------- */
 const myId = uid();
-let fbOk=false, fbLiveRef=null;
+let fbOk = false, fbLiveRef = null;
 let bc = ("BroadcastChannel" in window) ? new BroadcastChannel("toshkentsnd") : null;
-function initFirebase(){
-  const cfg = LS.get("snd_fb", null);
-  if(!cfg || !cfg.databaseURL || !window.firebase){ fbOk=false; return false; }
-  try{ if(!firebase.apps.length) firebase.initializeApp(cfg); fbLiveRef=firebase.database().ref("toshkentsnd/live"); fbOk=true; return true; }
-  catch(e){ console.warn("firebase init failed", e); fbOk=false; return false; }
+function initFirebase() {
+    const cfg = LS.get("snd_fb", null);
+    if (!cfg || !cfg.databaseURL || !window.firebase) {
+        fbOk = false;
+        return false;
+    }
+    try {
+        if (!firebase.apps.length)
+            firebase.initializeApp(cfg);
+        fbLiveRef = firebase.database().ref("toshkentsnd/live");
+        fbOk = true;
+        return true;
+    }
+    catch (e) {
+        console.warn("firebase init failed", e);
+        fbOk = false;
+        return false;
+    }
 }
-function publishLive(obj){
-  const payload={ phase:obj.phase, broadcast:obj.broadcast||null, updatedBy:myId, updatedAt:Date.now() };
-  if(fbOk&&fbLiveRef){ fbLiveRef.set(payload).catch(()=>{}); }
-  else { LS.set("snd_live", payload); if(bc) bc.postMessage(payload); }
+function publishLive(obj) {
+    const payload = { phase: obj.phase, broadcast: obj.broadcast || null, updatedBy: myId, updatedAt: Date.now() };
+    if (fbOk && fbLiveRef) {
+        fbLiveRef.set(payload).catch(() => { });
+    }
+    else {
+        LS.set("snd_live", payload);
+        if (bc)
+            bc.postMessage(payload);
+    }
 }
-function subscribeLive(cb){
-  if(fbOk&&fbLiveRef){ fbLiveRef.on("value", s=>{ const v=s.val(); if(v) cb(v); }); }
-  else { const init=LS.get("snd_live",null); if(init) cb(init);
-    if(bc) bc.onmessage=e=>cb(e.data);
-    window.addEventListener("storage", e=>{ if(e.key==="snd_live"&&e.newValue){ try{ cb(JSON.parse(e.newValue)); }catch(_){} } }); }
+function subscribeLive(cb) {
+    if (fbOk && fbLiveRef) {
+        fbLiveRef.on("value", s => { const v = s.val(); if (v)
+            cb(v); });
+    }
+    else {
+        const init = LS.get("snd_live", null);
+        if (init)
+            cb(init);
+        if (bc)
+            bc.onmessage = e => cb(e.data);
+        window.addEventListener("storage", e => { if (e.key === "snd_live" && e.newValue) {
+            try {
+                cb(JSON.parse(e.newValue));
+            }
+            catch (_) { }
+        } });
+    }
 }
 initFirebase();
-
-const SIDES=[{id:"right",t:"O'ng taraf",c:C.yigit},{id:"left",t:"Chap taraf",c:C.qiz},{id:"audience",t:"Auditoriya",c:C.amber}];
-const sideColor=id=>(SIDES.find(s=>s.id===id)||{}).c||C.amber;
-const Panel=({children,style})=>(<div style={{background:C.panel,border:"1px solid "+C.line,borderRadius:18,padding:20,marginBottom:14,...style}}>{children}</div>);
-function ScriptToggle({script,setScript,compact}){ return (
-  <div style={{display:"flex",background:C.panel,border:"1px solid "+C.line,borderRadius:9,padding:2,flexShrink:0}}>
-    {[["lat","Aa"],["cyr","Аа"]].map(([id,lbl])=>(
-      <button key={id} className="gc-btn" onClick={()=>setScript(id)} style={{padding:compact?"5px 10px":"6px 12px",borderRadius:7,fontSize:13,background:script===id?C.yigit:"transparent",color:script===id?"#08131f":C.muted}}>{lbl}</button>
-    ))}
-  </div>); }
-
+const SIDES = [{ id: "right", t: "O'ng taraf", c: C.yigit }, { id: "left", t: "Chap taraf", c: C.qiz }, { id: "audience", t: "Auditoriya", c: C.amber }];
+const sideColor = id => (SIDES.find(s => s.id === id) || {}).c || C.amber;
+const Panel = ({ children, style }) => (React.createElement("div", { style: { background: C.panel, border: "1px solid " + C.line, borderRadius: 18, padding: 20, marginBottom: 14, ...style } }, children));
+function ScriptToggle({ script, setScript, compact }) {
+    return (React.createElement("div", { style: { display: "flex", background: C.panel, border: "1px solid " + C.line, borderRadius: 9, padding: 2, flexShrink: 0 } }, [["lat", "Aa"], ["cyr", "Аа"]].map(([id, lbl]) => (React.createElement("button", { key: id, className: "gc-btn", onClick: () => setScript(id), style: { padding: compact ? "5px 10px" : "6px 12px", borderRadius: 7, fontSize: 13, background: script === id ? C.yigit : "transparent", color: script === id ? "#08131f" : C.muted } }, lbl)))));
+}
 /* ---------- App ---------- */
-function App(){
-  const [phase,setPhase]=useState("setup");
-  const [broadcast,setBroadcast]=useState(null);
-  const [topic,setTopic]=useState(LS.get("snd_draft",{}).topic||"");
-  const [thesis,setThesis]=useState(LS.get("snd_draft",{}).thesis||"");
-  const [pdfName,setPdfName]=useState(LS.get("snd_draft",{}).pdfName||"");
-  const [guests,setGuests]=useState(LS.get("snd_draft",{}).guests||[]);
-  const [script,setScript]=useState(LS.get("snd_script","lat"));
-  const [busy,setBusy]=useState(false);
-  const [progress,setProgress]=useState({done:0,total:0});
-  const [errMsg,setErrMsg]=useState("");
-  const [settings,setSettings]=useState(false);
-  const liveTs=useRef(0);
-  const hasKey = !!LS.get("snd_apikey","");
-
-  useEffect(()=>{ subscribeLive(s=>{ if(s.updatedAt!==liveTs.current && s.updatedBy!==myId){ liveTs.current=s.updatedAt; setPhase(s.phase||"setup"); setBroadcast(s.broadcast||null); } }); },[]);
-  useEffect(()=>{ const id=setTimeout(()=>LS.set("snd_draft",{topic,thesis,pdfName,guests}),500); return ()=>clearTimeout(id); },[topic,thesis,pdfName,guests]);
-  useEffect(()=>{ LS.set("snd_script",script); },[script]);
-
-  const doPublish=(obj)=>{ liveTs.current=Date.now(); publishLive(obj); };
-  const tr=t=>convert(t,script);
-  const addGuest=side=>setGuests(g=>[...g,{id:uid(),side,name:"",title:""}]);
-  const updateGuest=(id,patch)=>setGuests(g=>g.map(x=>x.id===id?{...x,...patch}:x));
-  const removeGuest=id=>setGuests(g=>g.filter(x=>x.id!==id));
-
-  const promptFor=g=>{ const lang="o'zbek tilida (lotin alifbosida)"; const who=(g.name||"mehmon")+(g.title?", "+g.title:"");
-    const rules="Muhim qoidalar (qat'iy amal qil):\n- Savollar TANQIDIY, ayblovchi yoki \"gotcha\" bo'lmasin; mehmonni sira noqulay ahvolga solmasin.\n- Har bir savol mehmonga o'z sohasini, bilimini namoyish etish imkonini bersin — mehmon savoldan mamnun bo'lib, bemalol va to'liq javob bera olsin.\n- Ohang iliq, hurmatli va do'stona; mehmon mavzu bo'yicha yetuk mutaxassisdek ko'rinsin.\n- Savollar chuqur, mazmunli va aniq bo'lsin; umumiy emas. Bir-birini takrorlamasin.";
-    const src=thesis.trim()? "Quyidagi tezisni CHUQUR tahlil qilib, aynan shu mehmonning sohasiga ("+(g.title||"—")+") tegishli, tezisdagi faktlarga asoslangan 5 ta savol tuz.\n\nTEZIS:\n"+thesis : "Tezis berilmagan. Shu mehmonning sohasi ("+(g.title||"—")+") va \""+(topic||"—")+"\" mavzusi bo'yicha aniq, faktlarga asoslangan 5 ta savol tuz.";
-    const facts="Bundan tashqari, boshlovchi suhbat orasida tashlab, mavzuni chuqur bilgandek ko'rinishi uchun 2-3 ta qiziqarli, aniq (raqam, sana yoki dalil) fakt tayyorla. Faktlar "+(thesis.trim()?"tezisga":"mavzuga")+" mos va ishonchli bo'lsin.";
-    return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \""+(topic||"—")+"\". Mehmon: "+who+".\n"+src+"\n\n"+rules+"\n\n"+facts+"\n\nJavobni FAQAT JSON ob'ekt ko'rinishida ber, boshqa hech narsa yozma:\n{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\",\"f3\"]}\nMatn "+lang+"."; };
-  const infoPrompt=()=>{ const lang="o'zbek tilida (lotin alifbosida)";
-    return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \""+topic+"\".\nQuyidagi tezisning ENG MUHIM, teletomoshabinlarga yetkazilishi kerak bo'lgan qismlaridan 3 ta MA'LUMOT BLOKI tayyorla. Bu bloklar efirdagi bo'shliq paytida (har ~10 daqiqada) o'qib beriladi.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda tomoshabinlarga yetkazadigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap); har blok tezisning boshqa-boshqa muhim jihatiga bag'ishlansin.\nJavobni FAQAT JSON ko'rinishida ber. Format:\n[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...blok 2... ], [ ...blok 3... ]]\nMatn "+lang+".\n\nTEZIS:\n"+thesis; };
-
-  const startBroadcast=async()=>{ setErrMsg("");
-    const active=guests.filter(g=>(g.name||"").trim()||(g.title||"").trim());
-    if(!topic.trim()){ setErrMsg("Avval mavzu nomini kiriting."); return; }
-    if(active.length===0){ setErrMsg("Kamida bitta mehmon (ism yoki lavozim) kiriting."); return; }
-    if(!LS.get("snd_apikey","")){ setErrMsg("Avval ⚙ Sozlamalarda Anthropic API kalitini kiriting."); setSettings(true); return; }
-    const withThesis=thesis.trim().length>0; setBusy(true);
-    const total=active.length+(withThesis?1:0); setProgress({done:0,total}); let done=0; const bump=()=>{done+=1;setProgress({done,total});};
-    try{
-      const infoP=withThesis? callAI(infoPrompt()).then(t=>{bump();return toInfos(t);}).catch(()=>{bump();return [];}) : Promise.resolve([]);
-      const guestP=active.map(g=>callAI(promptFor(g)).then(t=>{bump();return {id:g.id,...toGuest(t)};}).catch(()=>{bump();return {id:g.id,questions:[],facts:[]};}));
-      const [infoRes,guestRes]=await Promise.all([infoP,Promise.all(guestP)]);
-      const qmap={}; guestRes.forEach(r=>{qmap[r.id]=r;});
-      const bGuests=active.map(g=>({id:g.id,name:g.name,title:g.title,side:g.side,questions:(qmap[g.id]||{}).questions||[],facts:(qmap[g.id]||{}).facts||[],answered:[]}));
-      const bc2={topic,guests:bGuests,infos:infoRes,startedAt:Date.now()};
-      setBroadcast(bc2); setPhase("live"); doPublish({phase:"live",broadcast:bc2});
-      window.scrollTo({top:0,behavior:"smooth"});
-    }catch(e){ setErrMsg(e.message==="NOKEY"?"API kalit kiritilmagan. ⚙ Sozlamalarni oching.":"Xatolik: "+e.message); }
-    setBusy(false);
-  };
-  const markAnswered=(gid,idx)=>{ if(!broadcast) return; const nb={...broadcast,guests:broadcast.guests.map(g=>(g.id===gid&&!(g.answered||[]).includes(idx))?{...g,answered:[...(g.answered||[]),idx]}:g)}; setBroadcast(nb); doPublish({phase:"live",broadcast:nb}); };
-  const markInfoDone=iid=>{ if(!broadcast) return; const nb={...broadcast,infos:broadcast.infos.map(b=>b.id===iid?{...b,done:true}:b)}; setBroadcast(nb); doPublish({phase:"live",broadcast:nb}); };
-  const endBroadcast=()=>{ if(!window.confirm("Efirni yakunlaymizmi? Barcha qatnashchilarda bosh sahifaga qaytadi.")) return; setPhase("setup"); setBroadcast(null); doPublish({phase:"setup",broadcast:null}); window.scrollTo({top:0,behavior:"smooth"}); };
-
-  const noThesis=thesis.trim().length===0; const isLive=phase==="live"&&broadcast;
-
-  return (<div className="gc gc-bg"><div style={{maxWidth:680,margin:"0 auto",padding:"22px 16px 60px"}}>
-    {settings && <SettingsModal onClose={()=>setSettings(false)} />}
-    {isLive ? (
-      <LiveView broadcast={broadcast} tr={tr} script={script} setScript={setScript} markAnswered={markAnswered} markInfoDone={markInfoDone} onEnd={endBroadcast} />
-    ) : (<>
-      <Header onSettings={()=>setSettings(true)} />
-      {!hasKey && <div onClick={()=>setSettings(true)} style={{cursor:"pointer",background:"rgba(246,178,61,.10)",border:"1px solid rgba(246,178,61,.4)",borderRadius:12,padding:"11px 13px",marginBottom:14,fontSize:12.5,color:C.text,lineHeight:1.5}}>⚙ Ishlash uchun Sozlamalarda <b>Anthropic API kaliti</b>ni kiriting. Ko'p qurilmada sinxron efir uchun <b>Firebase</b> ham ulang.</div>}
-      <Panel>
-        <div className="gc-label" style={{fontSize:10.5,color:C.muted,marginBottom:8}}>Efir mavzusi</div>
-        <input className="gc-in" value={topic} onChange={e=>setTopic(e.target.value)} placeholder="Masalan: “Raqamli sud” konsepsiyasini amaliyotga joriy etish" style={{...inStyle,fontSize:18,fontWeight:700,borderRadius:12,padding:"14px 14px"}} />
-      </Panel>
-      <ThesisBlock thesis={thesis} setThesis={setThesis} pdfName={pdfName} setPdfName={setPdfName} noThesis={noThesis} />
-      {SIDES.map(side=>(<GuestSection key={side.id} side={side} list={guests.filter(g=>g.side===side.id)} addGuest={addGuest} updateGuest={updateGuest} removeGuest={removeGuest} />))}
-      {errMsg && !busy && <div style={{color:C.bad,fontSize:13,marginBottom:10}}>{errMsg}</div>}
-      <button className="gc-btn" onClick={startBroadcast} disabled={busy} style={{width:"100%",background:"linear-gradient(135deg,"+C.amber+",#e89a1f)",color:"#20160a",borderRadius:14,padding:"16px",fontSize:16,letterSpacing:".04em",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-        {busy? (<><span className="gc-spin" style={{width:16,height:16,border:"2px solid rgba(32,22,10,.35)",borderTopColor:"#20160a",borderRadius:"50%",display:"inline-block"}} /> TAYYORLANMOQDA… {progress.done}/{progress.total}</>) : "TAYYOR — efirni boshlash"}
-      </button>
-      {busy && <ProgressBar progress={progress} />}
-      {!busy && <div style={{textAlign:"center",fontSize:11.5,color:C.faint,marginTop:10,lineHeight:1.55}}>Bosilganda efir tayyorlanadi va <b style={{color:C.muted}}>barcha qatnashchilarda</b> bir vaqtda ochiladi.</div>}
-      <div style={{display:"flex",justifyContent:"center",marginTop:16}}><ScriptToggle script={script} setScript={setScript} /></div>
-    </>)}
-  </div></div>);
+function App() {
+    const [phase, setPhase] = useState("setup");
+    const [broadcast, setBroadcast] = useState(null);
+    const [topic, setTopic] = useState(LS.get("snd_draft", {}).topic || "");
+    const [thesis, setThesis] = useState(LS.get("snd_draft", {}).thesis || "");
+    const [pdfName, setPdfName] = useState(LS.get("snd_draft", {}).pdfName || "");
+    const [guests, setGuests] = useState(LS.get("snd_draft", {}).guests || []);
+    const [script, setScript] = useState(LS.get("snd_script", "lat"));
+    const [busy, setBusy] = useState(false);
+    const [progress, setProgress] = useState({ done: 0, total: 0 });
+    const [errMsg, setErrMsg] = useState("");
+    const [settings, setSettings] = useState(false);
+    const liveTs = useRef(0);
+    const hasKey = !!LS.get("snd_apikey", "");
+    useEffect(() => { subscribeLive(s => { if (s.updatedAt !== liveTs.current && s.updatedBy !== myId) {
+        liveTs.current = s.updatedAt;
+        setPhase(s.phase || "setup");
+        setBroadcast(s.broadcast || null);
+    } }); }, []);
+    useEffect(() => { const id = setTimeout(() => LS.set("snd_draft", { topic, thesis, pdfName, guests }), 500); return () => clearTimeout(id); }, [topic, thesis, pdfName, guests]);
+    useEffect(() => { LS.set("snd_script", script); }, [script]);
+    const doPublish = (obj) => { liveTs.current = Date.now(); publishLive(obj); };
+    const tr = t => convert(t, script);
+    const addGuest = side => setGuests(g => [...g, { id: uid(), side, name: "", title: "" }]);
+    const updateGuest = (id, patch) => setGuests(g => g.map(x => x.id === id ? { ...x, ...patch } : x));
+    const removeGuest = id => setGuests(g => g.filter(x => x.id !== id));
+    const promptFor = g => {
+        const lang = "o'zbek tilida (lotin alifbosida)";
+        const who = (g.name || "mehmon") + (g.title ? ", " + g.title : "");
+        const rules = "Muhim qoidalar (qat'iy amal qil):\n- Savollar TANQIDIY, ayblovchi yoki \"gotcha\" bo'lmasin; mehmonni sira noqulay ahvolga solmasin.\n- Har bir savol mehmonga o'z sohasini, bilimini namoyish etish imkonini bersin — mehmon savoldan mamnun bo'lib, bemalol va to'liq javob bera olsin.\n- Ohang iliq, hurmatli va do'stona; mehmon mavzu bo'yicha yetuk mutaxassisdek ko'rinsin.\n- Savollar chuqur, mazmunli va aniq bo'lsin; umumiy emas. Bir-birini takrorlamasin.";
+        const src = thesis.trim() ? "Quyidagi tezisni CHUQUR tahlil qilib, aynan shu mehmonning sohasiga (" + (g.title || "—") + ") tegishli, tezisdagi faktlarga asoslangan 5 ta savol tuz.\n\nTEZIS:\n" + thesis : "Tezis berilmagan. Shu mehmonning sohasi (" + (g.title || "—") + ") va \"" + (topic || "—") + "\" mavzusi bo'yicha aniq, faktlarga asoslangan 5 ta savol tuz.";
+        const facts = "Bundan tashqari, boshlovchi suhbat orasida tashlab, mavzuni chuqur bilgandek ko'rinishi uchun 2-3 ta qiziqarli, aniq (raqam, sana yoki dalil) fakt tayyorla. Faktlar " + (thesis.trim() ? "tezisga" : "mavzuga") + " mos va ishonchli bo'lsin.";
+        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\". Mehmon: " + who + ".\n" + src + "\n\n" + rules + "\n\n" + facts + "\n\nJavobni FAQAT JSON ob'ekt ko'rinishida ber, boshqa hech narsa yozma:\n{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\",\"f3\"]}\nMatn " + lang + ".";
+    };
+    const infoPrompt = () => {
+        const lang = "o'zbek tilida (lotin alifbosida)";
+        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \"" + topic + "\".\nQuyidagi tezisning ENG MUHIM, teletomoshabinlarga yetkazilishi kerak bo'lgan qismlaridan 3 ta MA'LUMOT BLOKI tayyorla. Bu bloklar efirdagi bo'shliq paytida (har ~10 daqiqada) o'qib beriladi.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda tomoshabinlarga yetkazadigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap); har blok tezisning boshqa-boshqa muhim jihatiga bag'ishlansin.\nJavobni FAQAT JSON ko'rinishida ber. Format:\n[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...blok 2... ], [ ...blok 3... ]]\nMatn " + lang + ".\n\nTEZIS:\n" + thesis;
+    };
+    const startBroadcast = async () => {
+        setErrMsg("");
+        const active = guests.filter(g => (g.name || "").trim() || (g.title || "").trim());
+        if (!topic.trim()) {
+            setErrMsg("Avval mavzu nomini kiriting.");
+            return;
+        }
+        if (active.length === 0) {
+            setErrMsg("Kamida bitta mehmon (ism yoki lavozim) kiriting.");
+            return;
+        }
+        if (!LS.get("snd_apikey", "")) {
+            setErrMsg("Avval ⚙ Sozlamalarda Anthropic API kalitini kiriting.");
+            setSettings(true);
+            return;
+        }
+        const withThesis = thesis.trim().length > 0;
+        setBusy(true);
+        const total = active.length + (withThesis ? 1 : 0);
+        setProgress({ done: 0, total });
+        let done = 0;
+        const bump = () => { done += 1; setProgress({ done, total }); };
+        try {
+            const infoP = withThesis ? callAI(infoPrompt()).then(t => { bump(); return toInfos(t); }).catch(() => { bump(); return []; }) : Promise.resolve([]);
+            const guestP = active.map(g => callAI(promptFor(g)).then(t => { bump(); return { id: g.id, ...toGuest(t) }; }).catch(() => { bump(); return { id: g.id, questions: [], facts: [] }; }));
+            const [infoRes, guestRes] = await Promise.all([infoP, Promise.all(guestP)]);
+            const qmap = {};
+            guestRes.forEach(r => { qmap[r.id] = r; });
+            const bGuests = active.map(g => ({ id: g.id, name: g.name, title: g.title, side: g.side, questions: (qmap[g.id] || {}).questions || [], facts: (qmap[g.id] || {}).facts || [], answered: [] }));
+            const bc2 = { topic, guests: bGuests, infos: infoRes, startedAt: Date.now() };
+            setBroadcast(bc2);
+            setPhase("live");
+            doPublish({ phase: "live", broadcast: bc2 });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        catch (e) {
+            setErrMsg(e.message === "NOKEY" ? "API kalit kiritilmagan. ⚙ Sozlamalarni oching." : "Xatolik: " + e.message);
+        }
+        setBusy(false);
+    };
+    const markAnswered = (gid, idx) => { if (!broadcast)
+        return; const nb = { ...broadcast, guests: broadcast.guests.map(g => (g.id === gid && !(g.answered || []).includes(idx)) ? { ...g, answered: [...(g.answered || []), idx] } : g) }; setBroadcast(nb); doPublish({ phase: "live", broadcast: nb }); };
+    const markInfoDone = iid => { if (!broadcast)
+        return; const nb = { ...broadcast, infos: broadcast.infos.map(b => b.id === iid ? { ...b, done: true } : b) }; setBroadcast(nb); doPublish({ phase: "live", broadcast: nb }); };
+    const endBroadcast = () => { if (!window.confirm("Efirni yakunlaymizmi? Barcha qatnashchilarda bosh sahifaga qaytadi."))
+        return; setPhase("setup"); setBroadcast(null); doPublish({ phase: "setup", broadcast: null }); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    const noThesis = thesis.trim().length === 0;
+    const isLive = phase === "live" && broadcast;
+    return (React.createElement("div", { className: "gc gc-bg" },
+        React.createElement("div", { style: { maxWidth: 680, margin: "0 auto", padding: "22px 16px 60px" } },
+            settings && React.createElement(SettingsModal, { onClose: () => setSettings(false) }),
+            isLive ? (React.createElement(LiveView, { broadcast: broadcast, tr: tr, script: script, setScript: setScript, markAnswered: markAnswered, markInfoDone: markInfoDone, onEnd: endBroadcast })) : (React.createElement(React.Fragment, null,
+                React.createElement(Header, { onSettings: () => setSettings(true) }),
+                !hasKey && React.createElement("div", { onClick: () => setSettings(true), style: { cursor: "pointer", background: "rgba(246,178,61,.10)", border: "1px solid rgba(246,178,61,.4)", borderRadius: 12, padding: "11px 13px", marginBottom: 14, fontSize: 12.5, color: C.text, lineHeight: 1.5 } },
+                    "\u2699 Ishlash uchun Sozlamalarda ",
+                    React.createElement("b", null, "Anthropic API kaliti"),
+                    "ni kiriting. Ko'p qurilmada sinxron efir uchun ",
+                    React.createElement("b", null, "Firebase"),
+                    " ham ulang."),
+                React.createElement(Panel, null,
+                    React.createElement("div", { className: "gc-label", style: { fontSize: 10.5, color: C.muted, marginBottom: 8 } }, "Efir mavzusi"),
+                    React.createElement("input", { className: "gc-in", value: topic, onChange: e => setTopic(e.target.value), placeholder: "Masalan: \u201CRaqamli sud\u201D konsepsiyasini amaliyotga joriy etish", style: { ...inStyle, fontSize: 18, fontWeight: 700, borderRadius: 12, padding: "14px 14px" } })),
+                React.createElement(ThesisBlock, { thesis: thesis, setThesis: setThesis, pdfName: pdfName, setPdfName: setPdfName, noThesis: noThesis }),
+                SIDES.map(side => (React.createElement(GuestSection, { key: side.id, side: side, list: guests.filter(g => g.side === side.id), addGuest: addGuest, updateGuest: updateGuest, removeGuest: removeGuest }))),
+                errMsg && !busy && React.createElement("div", { style: { color: C.bad, fontSize: 13, marginBottom: 10 } }, errMsg),
+                React.createElement("button", { className: "gc-btn", onClick: startBroadcast, disabled: busy, style: { width: "100%", background: "linear-gradient(135deg," + C.amber + ",#e89a1f)", color: "#20160a", borderRadius: 14, padding: "16px", fontSize: 16, letterSpacing: ".04em", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 } }, busy ? (React.createElement(React.Fragment, null,
+                    React.createElement("span", { className: "gc-spin", style: { width: 16, height: 16, border: "2px solid rgba(32,22,10,.35)", borderTopColor: "#20160a", borderRadius: "50%", display: "inline-block" } }),
+                    " TAYYORLANMOQDA\u2026 ",
+                    progress.done,
+                    "/",
+                    progress.total)) : "TAYYOR — efirni boshlash"),
+                busy && React.createElement(ProgressBar, { progress: progress }),
+                !busy && React.createElement("div", { style: { textAlign: "center", fontSize: 11.5, color: C.faint, marginTop: 10, lineHeight: 1.55 } },
+                    "Bosilganda efir tayyorlanadi va ",
+                    React.createElement("b", { style: { color: C.muted } }, "barcha qatnashchilarda"),
+                    " bir vaqtda ochiladi."),
+                React.createElement("div", { style: { display: "flex", justifyContent: "center", marginTop: 16 } },
+                    React.createElement(ScriptToggle, { script: script, setScript: setScript })))))));
 }
-
-function ProgressBar({progress}){ const pct=progress.total?Math.round(progress.done/progress.total*100):0;
-  return (<div style={{marginTop:12,height:6,background:C.bg2,borderRadius:6,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:"linear-gradient(90deg,"+C.yigit+","+C.qiz+")",transition:"width .3s ease"}} /></div>); }
-
-function Header({onSettings}){ return (
-  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
-    <div style={{width:44,height:44,borderRadius:12,flexShrink:0,background:"linear-gradient(135deg,"+C.yigit+","+C.qiz+")",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Manrope",fontWeight:800,color:"#08131f",fontSize:15}}>SND</div>
-    <div style={{flex:1}}>
-      <div className="gc-mono" style={{fontWeight:800,fontSize:22,letterSpacing:"-0.01em",lineHeight:1}}>Toshkent SND</div>
-      <div className="gc-label" style={{fontSize:9.5,color:C.faint,marginTop:5}}>Efir yordamchisi</div>
-    </div>
-    <button className="gc-btn" onClick={onSettings} title="Sozlamalar" style={{background:C.panel,color:C.muted,border:"1px solid "+C.line,borderRadius:10,width:40,height:40,fontSize:18}}>⚙</button>
-  </div>); }
-
-function SettingsModal({onClose}){
-  const [key,setKey]=useState(LS.get("snd_apikey",""));
-  const [model,setModel]=useState(LS.get("snd_model","claude-sonnet-5"));
-  const [fb,setFb]=useState(JSON.stringify(LS.get("snd_fb",null)||"",null,2)==='""'?"":JSON.stringify(LS.get("snd_fb",null),null,2));
-  const [msg,setMsg]=useState("");
-  const save=()=>{ LS.set("snd_apikey",key.trim()); LS.set("snd_model",(model.trim()||"claude-sonnet-5"));
-    let fbcfg=null; const raw=fb.trim();
-    if(raw){ try{ fbcfg=JSON.parse(raw); }catch(e){ setMsg("Firebase config JSON xato. Tekshiring."); return; } }
-    LS.set("snd_fb",fbcfg);
-    setMsg("Saqlandi. Yangilanmoqda…");
-    setTimeout(()=>{ location.reload(); }, 400);
-  };
-  return (<div onClick={onClose} style={{position:"fixed",inset:0,zIndex:80,background:"rgba(4,9,17,.82)",display:"flex",justifyContent:"center",alignItems:"flex-start",overflowY:"auto",padding:"24px 14px"}}>
-    <div onClick={e=>e.stopPropagation()} className="gc-pop" style={{width:"100%",maxWidth:560,background:C.panel,border:"1px solid "+C.line,borderRadius:18,padding:20}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <span className="gc-mono" style={{fontWeight:800,fontSize:18}}>Sozlamalar</span>
-        <button className="gc-btn" onClick={onClose} style={{background:C.bg2,color:C.muted,border:"1px solid "+C.line,borderRadius:10,width:38,height:38,fontSize:20}}>×</button>
-      </div>
-      <div className="gc-label" style={{fontSize:10,color:C.muted,marginBottom:7}}>Anthropic API kaliti</div>
-      <input className="gc-in" value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-ant-…" style={{...inStyle,marginBottom:6}} />
-      <div style={{fontSize:11,color:C.faint,marginBottom:16}}>console.anthropic.com → API Keys. Kalit faqat shu qurilmada saqlanadi.</div>
-      <div className="gc-label" style={{fontSize:10,color:C.muted,marginBottom:7}}>Model</div>
-      <input className="gc-in" value={model} onChange={e=>setModel(e.target.value)} placeholder="claude-sonnet-5" style={{...inStyle,marginBottom:16}} />
-      <div className="gc-label" style={{fontSize:10,color:C.muted,marginBottom:7}}>Firebase config (ko'p qurilma sinxroni uchun · ixtiyoriy)</div>
-      <textarea className="gc-in" value={fb} onChange={e=>setFb(e.target.value)} placeholder='{"apiKey":"…","databaseURL":"https://…","projectId":"…"}' style={{...inStyle,minHeight:120,fontFamily:"monospace",fontSize:12,lineHeight:1.5}} />
-      <div style={{fontSize:11,color:C.faint,margin:"8px 0 16px",lineHeight:1.5}}>Bo'sh qolsa — faqat shu qurilmada ishlaydi. To'ldirilsa — shu configni ishlatgan barcha qurilmalarda efir sinxron bo'ladi.</div>
-      {msg && <div style={{fontSize:12,color:C.good,marginBottom:12}}>{msg}</div>}
-      <button className="gc-btn" onClick={save} style={{width:"100%",background:"linear-gradient(135deg,"+C.yigit+",#3aa9d6)",color:"#08131f",borderRadius:12,padding:"14px",fontSize:15}}>Saqlash</button>
-    </div>
-  </div>);
+function ProgressBar({ progress }) {
+    const pct = progress.total ? Math.round(progress.done / progress.total * 100) : 0;
+    return (React.createElement("div", { style: { marginTop: 12, height: 6, background: C.bg2, borderRadius: 6, overflow: "hidden" } },
+        React.createElement("div", { style: { width: pct + "%", height: "100%", background: "linear-gradient(90deg," + C.yigit + "," + C.qiz + ")", transition: "width .3s ease" } })));
 }
-
-function ThesisBlock({thesis,setThesis,pdfName,setPdfName,noThesis}){
-  const [pdfLoading,setPdfLoading]=useState(false); const [pdfErr,setPdfErr]=useState(""); const fileRef=useRef(null);
-  const onPdf=async e=>{ const file=e.target.files&&e.target.files[0]; e.target.value=""; if(!file) return;
-    setPdfErr(""); setPdfLoading(true); setPdfName(file.name);
-    try{ const text=await extractPdfText(file); if(!text) throw new Error("empty"); setThesis(text); }
-    catch(err){ setPdfErr("PDF matnini o'qib bo'lmadi (skaner bo'lishi mumkin). Matnni qo'lda joylashtiring."); setPdfName(""); }
-    setPdfLoading(false); };
-  return (<Panel>
-    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:10}}>
-      <span className="gc-label" style={{fontSize:10.5,color:C.muted}}>Tezis</span>
-      <span style={{fontSize:10.5,color:C.faint}}>PDF yuklang yoki matn kiriting · ixtiyoriy</span>
-    </div>
-    <input ref={fileRef} type="file" accept="application/pdf" onChange={onPdf} style={{display:"none"}} />
-    {!pdfName ? (
-      <button className="gc-btn" onClick={()=>fileRef.current&&fileRef.current.click()} disabled={pdfLoading} style={{width:"100%",background:C.bg2,color:C.muted,border:"1px dashed "+C.line,borderRadius:12,padding:"16px",fontSize:13.5,display:"flex",alignItems:"center",justifyContent:"center",gap:9}}>
-        {pdfLoading? (<><span className="gc-spin" style={{width:15,height:15,border:"2px solid "+C.line,borderTopColor:C.yigit,borderRadius:"50%",display:"inline-block"}} /> PDF o'qilmoqda…</>) : "📎 Tezis PDF faylini yuklash"}
-      </button>
-    ) : (
-      <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(95,208,138,.10)",border:"1px solid rgba(95,208,138,.4)",borderRadius:12,padding:"12px 13px"}}>
-        <span style={{fontSize:16}}>📄</span>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13.5,color:C.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pdfName}</div>
-          <div style={{fontSize:11,color:C.good,marginTop:2}}>Matn o'qib olindi · {thesis.length.toLocaleString()} belgi</div>
-        </div>
-        <button className="gc-btn" onClick={()=>{setPdfName("");setThesis("");}} title="O'chirish" style={{background:"transparent",color:C.bad,fontSize:18,padding:"0 6px",lineHeight:1}}>×</button>
-      </div>
-    )}
-    {pdfErr && <div style={{color:C.bad,fontSize:12,marginTop:8}}>{pdfErr}</div>}
-    <textarea className="gc-in" value={thesis} onChange={e=>setThesis(e.target.value)} placeholder="…yoki tezis matnini shu yerga yozing / tahrirlang." style={{...inStyle,marginTop:12,minHeight:140,resize:"vertical",lineHeight:1.55}} />
-    <div style={{marginTop:12,display:"flex",gap:10,padding:"11px 13px",borderRadius:11,background:noThesis?"rgba(246,178,61,.10)":C.bg2,border:"1px solid "+(noThesis?"rgba(246,178,61,.4)":C.line)}}>
-      <span style={{fontSize:15,flexShrink:0}}>{noThesis?"✨":"📄"}</span>
-      <span style={{fontSize:12.5,color:noThesis?C.text:C.muted,lineHeight:1.5}}>{noThesis?"Tezis bo'sh. Ilova aniq faktlar va har mehmon mutaxassisligidan kelib chiqib 5 tadan savol tuzadi. (Efir ma'lumotlari faqat tezis bo'lganda tayyorlanadi.)":"Tezis tayyor. Ilova har mehmonga savol + so'zlash faktlari va efir bo'shliqlari uchun 3 ta ma'lumot bloki tayyorlaydi."}</span>
-    </div>
-  </Panel>);
+function Header({ onSettings }) {
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 20 } },
+        React.createElement("div", { style: { width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: "linear-gradient(135deg," + C.yigit + "," + C.qiz + ")", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Manrope", fontWeight: 800, color: "#08131f", fontSize: 15 } }, "SND"),
+        React.createElement("div", { style: { flex: 1 } },
+            React.createElement("div", { className: "gc-mono", style: { fontWeight: 800, fontSize: 22, letterSpacing: "-0.01em", lineHeight: 1 } }, "Toshkent SND"),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 9.5, color: C.faint, marginTop: 5 } }, "Efir yordamchisi")),
+        React.createElement("button", { className: "gc-btn", onClick: onSettings, title: "Sozlamalar", style: { background: C.panel, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 40, height: 40, fontSize: 18 } }, "\u2699")));
 }
-
-function GuestSection({side,list,addGuest,updateGuest,removeGuest}){
-  return (<Panel style={{padding:18}}>
-    <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:14}}>
-      <span style={{width:9,height:9,borderRadius:9,background:side.c}} />
-      <span className="gc-mono" style={{fontWeight:800,fontSize:15}}>{side.t}</span>
-      <span className="gc-mono" style={{fontSize:12,color:C.faint}}>· {list.length} ta</span>
-    </div>
-    <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {list.map((g,i)=>(
-        <div key={g.id} className="gc-fade" style={{background:C.bg2,border:"1px solid "+C.line,borderRadius:12,padding:12}}>
-          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-            <span className="gc-mono" style={{fontSize:11.5,color:C.faint,width:18,flexShrink:0}}>{String(i+1).padStart(2,"0")}</span>
-            <input className="gc-in" value={g.name} onChange={e=>updateGuest(g.id,{name:e.target.value})} placeholder="Ism sharifi" style={{...inStyle,padding:"10px 11px",fontWeight:700,fontSize:16}} />
-            <button className="gc-btn" onClick={()=>removeGuest(g.id)} title="O'chirish" style={{background:"transparent",color:C.bad,fontSize:18,padding:"0 4px",lineHeight:1,flexShrink:0}}>×</button>
-          </div>
-          <input className="gc-in" value={g.title} onChange={e=>updateGuest(g.id,{title:e.target.value})} placeholder="Lavozimi / mutaxassisligi" style={{...inStyle,padding:"9px 11px",marginLeft:26,width:"calc(100% - 26px)"}} />
-        </div>
-      ))}
-    </div>
-    <button className="gc-btn" onClick={()=>addGuest(side.id)} style={{width:"100%",marginTop:list.length?10:0,background:"transparent",color:side.c,border:"1px dashed "+side.c,borderRadius:11,padding:"12px",fontSize:13}}>+ Mehmon qo'shish</button>
-  </Panel>);
+function SettingsModal({ onClose }) {
+    const [key, setKey] = useState(LS.get("snd_apikey", ""));
+    const [model, setModel] = useState(LS.get("snd_model", "claude-sonnet-5"));
+    const [fb, setFb] = useState(JSON.stringify(LS.get("snd_fb", null) || "", null, 2) === '""' ? "" : JSON.stringify(LS.get("snd_fb", null), null, 2));
+    const [msg, setMsg] = useState("");
+    const save = () => {
+        LS.set("snd_apikey", key.trim());
+        LS.set("snd_model", (model.trim() || "claude-sonnet-5"));
+        let fbcfg = null;
+        const raw = fb.trim();
+        if (raw) {
+            try {
+                fbcfg = JSON.parse(raw);
+            }
+            catch (e) {
+                setMsg("Firebase config JSON xato. Tekshiring.");
+                return;
+            }
+        }
+        LS.set("snd_fb", fbcfg);
+        setMsg("Saqlandi. Yangilanmoqda…");
+        setTimeout(() => { location.reload(); }, 400);
+    };
+    return (React.createElement("div", { onClick: onClose, style: { position: "fixed", inset: 0, zIndex: 80, background: "rgba(4,9,17,.82)", display: "flex", justifyContent: "center", alignItems: "flex-start", overflowY: "auto", padding: "24px 14px" } },
+        React.createElement("div", { onClick: e => e.stopPropagation(), className: "gc-pop", style: { width: "100%", maxWidth: 560, background: C.panel, border: "1px solid " + C.line, borderRadius: 18, padding: 20 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
+                React.createElement("span", { className: "gc-mono", style: { fontWeight: 800, fontSize: 18 } }, "Sozlamalar"),
+                React.createElement("button", { className: "gc-btn", onClick: onClose, style: { background: C.bg2, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 38, height: 38, fontSize: 20 } }, "\u00D7")),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Anthropic API kaliti"),
+            React.createElement("input", { className: "gc-in", value: key, onChange: e => setKey(e.target.value), placeholder: "sk-ant-\u2026", style: { ...inStyle, marginBottom: 6 } }),
+            React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16 } }, "console.anthropic.com \u2192 API Keys. Kalit faqat shu qurilmada saqlanadi."),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Model"),
+            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "claude-sonnet-5", style: { ...inStyle, marginBottom: 16 } }),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Firebase config (ko'p qurilma sinxroni uchun \u00B7 ixtiyoriy)"),
+            React.createElement("textarea", { className: "gc-in", value: fb, onChange: e => setFb(e.target.value), placeholder: '{"apiKey":"\u2026","databaseURL":"https://\u2026","projectId":"\u2026"}', style: { ...inStyle, minHeight: 120, fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 } }),
+            React.createElement("div", { style: { fontSize: 11, color: C.faint, margin: "8px 0 16px", lineHeight: 1.5 } }, "Bo'sh qolsa \u2014 faqat shu qurilmada ishlaydi. To'ldirilsa \u2014 shu configni ishlatgan barcha qurilmalarda efir sinxron bo'ladi."),
+            msg && React.createElement("div", { style: { fontSize: 12, color: C.good, marginBottom: 12 } }, msg),
+            React.createElement("button", { className: "gc-btn", onClick: save, style: { width: "100%", background: "linear-gradient(135deg," + C.yigit + ",#3aa9d6)", color: "#08131f", borderRadius: 12, padding: "14px", fontSize: 15 } }, "Saqlash"))));
 }
-
-function LiveView({broadcast,tr,script,setScript,markAnswered,markInfoDone,onEnd}){
-  const [selId,setSelId]=useState(null); const [infoId,setInfoId]=useState(null);
-  const guests=broadcast.guests||[]; const infos=broadcast.infos||[];
-  const left=guests.filter(g=>g.side==="left"), right=guests.filter(g=>g.side==="right"), audience=guests.filter(g=>g.side==="audience");
-  const sel=guests.find(g=>g.id===selId)||null; const info=infos.find(b=>b.id===infoId)||null;
-  return (<div className="gc-fade">
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:7,background:"rgba(255,107,107,.14)",border:"1px solid rgba(255,107,107,.5)",borderRadius:9,padding:"7px 11px",flexShrink:0}}>
-        <span className="gc-blink" style={{width:8,height:8,borderRadius:8,background:C.bad,display:"inline-block"}} />
-        <span className="gc-label" style={{fontSize:10,color:C.bad}}>Jonli efir</span>
-      </div>
-      <div style={{flex:1,minWidth:0}}><div className="gc-mono" style={{fontWeight:800,fontSize:22,lineHeight:1.18}}>{tr(broadcast.topic)||"Efir"}</div></div>
-      <ScriptToggle script={script} setScript={setScript} compact />
-    </div>
-    <div style={{height:1,background:C.line,margin:"0 0 16px"}} />
-    {infos.length>0 && (<div style={{marginBottom:18}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-        <span style={{fontSize:13}}>📢</span><span className="gc-label" style={{fontSize:10.5,color:C.amber}}>Efir ma'lumotlari</span>
-        <span className="gc-mono" style={{fontSize:11,color:C.faint}}>· bo'shliqda o'qish uchun</span>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
-        {infos.map((b,i)=>(<button key={b.id} className="gc-btn" onClick={()=>setInfoId(b.id)} style={{textAlign:"left",background:C.panel,border:"1px solid "+(b.done?C.line:"rgba(246,178,61,.5)"),borderRadius:13,padding:"12px 12px",opacity:b.done?0.55:1}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><span className="gc-label" style={{fontSize:9.5,color:C.amber}}>Ma'lumot {i+1}</span>{b.done&&<span style={{color:C.good,fontSize:12}}>✓</span>}</div>
-          <div style={{fontSize:11.5,color:C.muted,marginTop:6,lineHeight:1.4,display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{tr((b.lines[0]&&b.lines[0].text)||"")}</div>
-        </button>))}
-      </div>
-    </div>)}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-      <BoardColumn side={SIDES[1]} list={left} onPick={setSelId} tr={tr} />
-      <BoardColumn side={SIDES[0]} list={right} onPick={setSelId} tr={tr} />
-    </div>
-    {audience.length>0 && (<div style={{marginTop:14}}>
-      <ColHeader side={SIDES[2]} count={audience.length} />
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:8}}>{audience.map(g=><GuestChip key={g.id} g={g} color={C.amber} onPick={setSelId} tr={tr} wide />)}</div>
-    </div>)}
-    <button className="gc-btn" onClick={onEnd} style={{width:"100%",marginTop:24,background:"rgba(255,107,107,.12)",color:C.bad,border:"1px solid rgba(255,107,107,.5)",borderRadius:14,padding:"15px",fontSize:15,letterSpacing:".04em"}}>TAMOM — efirni yakunlash</button>
-    <div style={{textAlign:"center",fontSize:11,color:C.faint,marginTop:9}}>Efir davomida sozlamalar barcha qatnashchilarda qulflangan.</div>
-    {sel && <QuestionReader guest={sel} tr={tr} script={script} setScript={setScript} onClose={()=>setSelId(null)} onOk={idx=>markAnswered(sel.id,idx)} />}
-    {info && <InfoReader block={info} index={infos.findIndex(b=>b.id===info.id)} tr={tr} script={script} setScript={setScript} onClose={()=>setInfoId(null)} onDone={()=>{markInfoDone(info.id);setInfoId(null);}} />}
-  </div>);
+function ThesisBlock({ thesis, setThesis, pdfName, setPdfName, noThesis }) {
+    const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfErr, setPdfErr] = useState("");
+    const fileRef = useRef(null);
+    const onPdf = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        e.target.value = "";
+        if (!file)
+            return;
+        setPdfErr("");
+        setPdfLoading(true);
+        setPdfName(file.name);
+        try {
+            const text = await extractPdfText(file);
+            if (!text)
+                throw new Error("empty");
+            setThesis(text);
+        }
+        catch (err) {
+            setPdfErr("PDF matnini o'qib bo'lmadi (skaner bo'lishi mumkin). Matnni qo'lda joylashtiring.");
+            setPdfName("");
+        }
+        setPdfLoading(false);
+    };
+    return (React.createElement(Panel, null,
+        React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 } },
+            React.createElement("span", { className: "gc-label", style: { fontSize: 10.5, color: C.muted } }, "Tezis"),
+            React.createElement("span", { style: { fontSize: 10.5, color: C.faint } }, "PDF yuklang yoki matn kiriting \u00B7 ixtiyoriy")),
+        React.createElement("input", { ref: fileRef, type: "file", accept: "application/pdf", onChange: onPdf, style: { display: "none" } }),
+        !pdfName ? (React.createElement("button", { className: "gc-btn", onClick: () => fileRef.current && fileRef.current.click(), disabled: pdfLoading, style: { width: "100%", background: C.bg2, color: C.muted, border: "1px dashed " + C.line, borderRadius: 12, padding: "16px", fontSize: 13.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 9 } }, pdfLoading ? (React.createElement(React.Fragment, null,
+            React.createElement("span", { className: "gc-spin", style: { width: 15, height: 15, border: "2px solid " + C.line, borderTopColor: C.yigit, borderRadius: "50%", display: "inline-block" } }),
+            " PDF o'qilmoqda\u2026")) : "📎 Tezis PDF faylini yuklash")) : (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, background: "rgba(95,208,138,.10)", border: "1px solid rgba(95,208,138,.4)", borderRadius: 12, padding: "12px 13px" } },
+            React.createElement("span", { style: { fontSize: 16 } }, "\uD83D\uDCC4"),
+            React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("div", { style: { fontSize: 13.5, color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, pdfName),
+                React.createElement("div", { style: { fontSize: 11, color: C.good, marginTop: 2 } },
+                    "Matn o'qib olindi \u00B7 ",
+                    thesis.length.toLocaleString(),
+                    " belgi")),
+            React.createElement("button", { className: "gc-btn", onClick: () => { setPdfName(""); setThesis(""); }, title: "O'chirish", style: { background: "transparent", color: C.bad, fontSize: 18, padding: "0 6px", lineHeight: 1 } }, "\u00D7"))),
+        pdfErr && React.createElement("div", { style: { color: C.bad, fontSize: 12, marginTop: 8 } }, pdfErr),
+        React.createElement("textarea", { className: "gc-in", value: thesis, onChange: e => setThesis(e.target.value), placeholder: "\u2026yoki tezis matnini shu yerga yozing / tahrirlang.", style: { ...inStyle, marginTop: 12, minHeight: 140, resize: "vertical", lineHeight: 1.55 } }),
+        React.createElement("div", { style: { marginTop: 12, display: "flex", gap: 10, padding: "11px 13px", borderRadius: 11, background: noThesis ? "rgba(246,178,61,.10)" : C.bg2, border: "1px solid " + (noThesis ? "rgba(246,178,61,.4)" : C.line) } },
+            React.createElement("span", { style: { fontSize: 15, flexShrink: 0 } }, noThesis ? "✨" : "📄"),
+            React.createElement("span", { style: { fontSize: 12.5, color: noThesis ? C.text : C.muted, lineHeight: 1.5 } }, noThesis ? "Tezis bo'sh. Ilova aniq faktlar va har mehmon mutaxassisligidan kelib chiqib 5 tadan savol tuzadi. (Efir ma'lumotlari faqat tezis bo'lganda tayyorlanadi.)" : "Tezis tayyor. Ilova har mehmonga savol + so'zlash faktlari va efir bo'shliqlari uchun 3 ta ma'lumot bloki tayyorlaydi."))));
 }
-function ColHeader({side,count}){ return (<div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:8,background:side.c}} /><span className="gc-label" style={{fontSize:10.5,color:side.c}}>{side.t}</span><span className="gc-mono" style={{fontSize:11,color:C.faint}}>· {count}</span></div>); }
-function BoardColumn({side,list,onPick,tr}){ return (<div><ColHeader side={side} count={list.length} /><div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>{list.length===0?<div style={{fontSize:12,color:C.faint,padding:"10px 2px"}}>—</div>:list.map(g=><GuestChip key={g.id} g={g} color={side.c} onPick={onPick} tr={tr} />)}</div></div>); }
-function GuestChip({g,color,onPick,tr,wide}){
-  const total=(g.questions||[]).length; const remaining=Math.max(0,total-(g.answered||[]).length); const allDone=total>0&&remaining===0;
-  return (<button className="gc-btn" onClick={()=>onPick(g.id)} style={{textAlign:"left",background:C.panel,border:"1px solid "+(allDone?C.line:color),borderRadius:14,padding:"15px 15px",width:wide?"auto":"100%",flex:wide?"1 1 auto":"none",opacity:allDone?0.6:1}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"space-between"}}>
-      <span style={{fontSize:18.5,fontWeight:800,color:C.text,lineHeight:1.2}}>{tr(g.name)||"Mehmon"}</span>
-      {total>0 && <span className="gc-mono" style={{fontSize:13,fontWeight:800,flexShrink:0,minWidth:27,height:27,padding:"0 7px",borderRadius:8,display:"inline-flex",alignItems:"center",justifyContent:"center",background:allDone?"transparent":color,color:allDone?C.good:"#08131f"}}>{allDone?"✓":remaining}</span>}
-    </div>
-    {g.title && <div style={{fontSize:13.5,color:C.muted,marginTop:5,lineHeight:1.4}}>{tr(g.title)}</div>}
-  </button>);
+function GuestSection({ side, list, addGuest, updateGuest, removeGuest }) {
+    return (React.createElement(Panel, { style: { padding: 18 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 14 } },
+            React.createElement("span", { style: { width: 9, height: 9, borderRadius: 9, background: side.c } }),
+            React.createElement("span", { className: "gc-mono", style: { fontWeight: 800, fontSize: 15 } }, side.t),
+            React.createElement("span", { className: "gc-mono", style: { fontSize: 12, color: C.faint } },
+                "\u00B7 ",
+                list.length,
+                " ta")),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } }, list.map((g, i) => (React.createElement("div", { key: g.id, className: "gc-fade", style: { background: C.bg2, border: "1px solid " + C.line, borderRadius: 12, padding: 12 } },
+            React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 8 } },
+                React.createElement("span", { className: "gc-mono", style: { fontSize: 11.5, color: C.faint, width: 18, flexShrink: 0 } }, String(i + 1).padStart(2, "0")),
+                React.createElement("input", { className: "gc-in", value: g.name, onChange: e => updateGuest(g.id, { name: e.target.value }), placeholder: "Ism sharifi", style: { ...inStyle, padding: "10px 11px", fontWeight: 700, fontSize: 16 } }),
+                React.createElement("button", { className: "gc-btn", onClick: () => removeGuest(g.id), title: "O'chirish", style: { background: "transparent", color: C.bad, fontSize: 18, padding: "0 4px", lineHeight: 1, flexShrink: 0 } }, "\u00D7")),
+            React.createElement("input", { className: "gc-in", value: g.title, onChange: e => updateGuest(g.id, { title: e.target.value }), placeholder: "Lavozimi / mutaxassisligi", style: { ...inStyle, padding: "9px 11px", marginLeft: 26, width: "calc(100% - 26px)" } }))))),
+        React.createElement("button", { className: "gc-btn", onClick: () => addGuest(side.id), style: { width: "100%", marginTop: list.length ? 10 : 0, background: "transparent", color: side.c, border: "1px dashed " + side.c, borderRadius: 11, padding: "12px", fontSize: 13 } }, "+ Mehmon qo'shish")));
 }
-
-function Fullscreen({children}){ return (<div className="gc-scroll" style={{position:"fixed",inset:0,zIndex:60,background:"linear-gradient(180deg,"+C.bg2+","+C.bg+")",overflowY:"auto"}}><div className="gc-pop" style={{maxWidth:680,margin:"0 auto",padding:"18px 18px 120px",minHeight:"100%"}}>{children}</div></div>); }
-function ReaderTop({label,color,script,setScript,onClose}){ return (<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:16}}>
-  <span className="gc-label" style={{fontSize:10.5,color}}>{label}</span>
-  <div style={{display:"flex",alignItems:"center",gap:8}}><ScriptToggle script={script} setScript={setScript} compact /><button className="gc-btn" onClick={onClose} style={{background:C.panel,color:C.muted,border:"1px solid "+C.line,borderRadius:10,width:40,height:40,fontSize:21,lineHeight:1}}>×</button></div>
-</div>); }
-function InfoReader({block,index,tr,script,setScript,onClose,onDone}){ return (<Fullscreen>
-  <ReaderTop label={"Efir ma'lumoti "+(index+1)} color={C.amber} script={script} setScript={setScript} onClose={onClose} />
-  <div style={{display:"flex",flexDirection:"column",gap:14}}>
-    {block.lines.map((l,i)=>{ const isQiz=l.host==="qiz"; const col=isQiz?C.qiz:C.yigit; return (
-      <div key={i} style={{borderLeft:"4px solid "+col,paddingLeft:16}}>
-        <div className="gc-label" style={{fontSize:11,color:col,marginBottom:7}}>{isQiz?tr("QIZ"):tr("YIGIT")}</div>
-        <div style={{fontSize:22,lineHeight:1.5,fontWeight:500,color:C.text}}>{tr(l.text)}</div>
-      </div>); })}
-  </div>
-  <button className="gc-btn" onClick={onDone} style={{width:"100%",marginTop:26,background:"rgba(95,208,138,.14)",color:C.good,border:"1px solid rgba(95,208,138,.5)",borderRadius:14,padding:"16px",fontSize:15.5}}>OK · o'qib bo'lindi</button>
-</Fullscreen>); }
-function QuestionReader({guest,tr,script,setScript,onClose,onOk}){
-  const color=sideColor(guest.side); const total=(guest.questions||[]).length; const answered=guest.answered||[];
-  const remaining=(guest.questions||[]).map((q,i)=>({q,i})).filter(({i})=>!answered.includes(i)); const facts=guest.facts||[];
-  return (<Fullscreen>
-    <ReaderTop label="Mehmon savollari" color={color} script={script} setScript={setScript} onClose={onClose} />
-    <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:6}}>
-      <span style={{width:12,height:12,borderRadius:12,background:color,marginTop:8,flexShrink:0}} />
-      <div style={{flex:1,minWidth:0}}><div className="gc-mono" style={{fontSize:26,fontWeight:800,lineHeight:1.12}}>{tr(guest.name)||"Mehmon"}</div>{guest.title&&<div style={{fontSize:14,color:C.muted,marginTop:5}}>{tr(guest.title)}</div>}</div>
-    </div>
-    {facts.length>0 && (<div style={{background:"rgba(246,178,61,.09)",border:"1px solid rgba(246,178,61,.4)",borderRadius:14,padding:"14px 15px",margin:"16px 0 4px"}}>
-      <div className="gc-label" style={{fontSize:10,color:C.amber,marginBottom:9}}>💡 So'zlab ketish uchun faktlar</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>{facts.map((f,i)=>(<div key={i} style={{display:"flex",gap:9,fontSize:15,lineHeight:1.5,color:C.text}}><span style={{color:C.amber,flexShrink:0}}>•</span><span>{tr(f)}</span></div>))}</div>
-    </div>)}
-    <div className="gc-label" style={{fontSize:10,color,margin:"18px 0 14px"}}>Savollar · {remaining.length} / {total} qoldi</div>
-    {remaining.length===0 ? (
-      <div style={{textAlign:"center",padding:"40px 16px"}}><div style={{fontSize:34,marginBottom:12}}>✅</div><div className="gc-mono" style={{fontSize:19,fontWeight:700}}>{tr("Barcha savollar berildi")}</div>
-        <button className="gc-btn" onClick={onClose} style={{marginTop:20,background:C.panelSoft,color:C.text,border:"1px solid "+C.line,borderRadius:12,padding:"13px 24px",fontSize:15}}>Yopish</button></div>
-    ) : (
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>{remaining.map(({q,i},pos)=>(
-        <div key={i} className="gc-pop" style={{background:pos===0?C.panel:C.bg2,border:"1px solid "+(pos===0?color:C.line),borderRadius:16,padding:"18px 18px 16px"}}>
-          <div style={{display:"flex",gap:13}}><span className="gc-mono" style={{fontSize:16,fontWeight:800,color,flexShrink:0,marginTop:4}}>{pos+1}</span><div style={{fontSize:pos===0?23:20,lineHeight:1.48,fontWeight:500}}>{tr(q)}</div></div>
-          <button className="gc-btn" onClick={()=>onOk(i)} style={{marginTop:16,marginLeft:29,background:"rgba(95,208,138,.14)",color:C.good,border:"1px solid rgba(95,208,138,.5)",borderRadius:12,padding:"11px 20px",fontSize:14}}>OK · javob berildi</button>
-        </div>))}</div>
-    )}
-  </Fullscreen>);
+function LiveView({ broadcast, tr, script, setScript, markAnswered, markInfoDone, onEnd }) {
+    const [selId, setSelId] = useState(null);
+    const [infoId, setInfoId] = useState(null);
+    const guests = broadcast.guests || [];
+    const infos = broadcast.infos || [];
+    const left = guests.filter(g => g.side === "left"), right = guests.filter(g => g.side === "right"), audience = guests.filter(g => g.side === "audience");
+    const sel = guests.find(g => g.id === selId) || null;
+    const info = infos.find(b => b.id === infoId) || null;
+    return (React.createElement("div", { className: "gc-fade" },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 7, background: "rgba(255,107,107,.14)", border: "1px solid rgba(255,107,107,.5)", borderRadius: 9, padding: "7px 11px", flexShrink: 0 } },
+                React.createElement("span", { className: "gc-blink", style: { width: 8, height: 8, borderRadius: 8, background: C.bad, display: "inline-block" } }),
+                React.createElement("span", { className: "gc-label", style: { fontSize: 10, color: C.bad } }, "Jonli efir")),
+            React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("div", { className: "gc-mono", style: { fontWeight: 800, fontSize: 22, lineHeight: 1.18 } }, tr(broadcast.topic) || "Efir")),
+            React.createElement(ScriptToggle, { script: script, setScript: setScript, compact: true })),
+        React.createElement("div", { style: { height: 1, background: C.line, margin: "0 0 16px" } }),
+        infos.length > 0 && (React.createElement("div", { style: { marginBottom: 18 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 } },
+                React.createElement("span", { style: { fontSize: 13 } }, "\uD83D\uDCE2"),
+                React.createElement("span", { className: "gc-label", style: { fontSize: 10.5, color: C.amber } }, "Efir ma'lumotlari"),
+                React.createElement("span", { className: "gc-mono", style: { fontSize: 11, color: C.faint } }, "\u00B7 bo'shliqda o'qish uchun")),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 9 } }, infos.map((b, i) => (React.createElement("button", { key: b.id, className: "gc-btn", onClick: () => setInfoId(b.id), style: { textAlign: "left", background: C.panel, border: "1px solid " + (b.done ? C.line : "rgba(246,178,61,.5)"), borderRadius: 13, padding: "12px 12px", opacity: b.done ? 0.55 : 1 } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+                    React.createElement("span", { className: "gc-label", style: { fontSize: 9.5, color: C.amber } },
+                        "Ma'lumot ",
+                        i + 1),
+                    b.done && React.createElement("span", { style: { color: C.good, fontSize: 12 } }, "\u2713")),
+                React.createElement("div", { style: { fontSize: 11.5, color: C.muted, marginTop: 6, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } }, tr((b.lines[0] && b.lines[0].text) || "")))))))),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+            React.createElement(BoardColumn, { side: SIDES[1], list: left, onPick: setSelId, tr: tr }),
+            React.createElement(BoardColumn, { side: SIDES[0], list: right, onPick: setSelId, tr: tr })),
+        audience.length > 0 && (React.createElement("div", { style: { marginTop: 14 } },
+            React.createElement(ColHeader, { side: SIDES[2], count: audience.length }),
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 } }, audience.map(g => React.createElement(GuestChip, { key: g.id, g: g, color: C.amber, onPick: setSelId, tr: tr, wide: true }))))),
+        React.createElement("button", { className: "gc-btn", onClick: onEnd, style: { width: "100%", marginTop: 24, background: "rgba(255,107,107,.12)", color: C.bad, border: "1px solid rgba(255,107,107,.5)", borderRadius: 14, padding: "15px", fontSize: 15, letterSpacing: ".04em" } }, "TAMOM \u2014 efirni yakunlash"),
+        React.createElement("div", { style: { textAlign: "center", fontSize: 11, color: C.faint, marginTop: 9 } }, "Efir davomida sozlamalar barcha qatnashchilarda qulflangan."),
+        sel && React.createElement(QuestionReader, { guest: sel, tr: tr, script: script, setScript: setScript, onClose: () => setSelId(null), onOk: idx => markAnswered(sel.id, idx) }),
+        info && React.createElement(InfoReader, { block: info, index: infos.findIndex(b => b.id === info.id), tr: tr, script: script, setScript: setScript, onClose: () => setInfoId(null), onDone: () => { markInfoDone(info.id); setInfoId(null); } })));
 }
+function ColHeader({ side, count }) { return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+    React.createElement("span", { style: { width: 8, height: 8, borderRadius: 8, background: side.c } }),
+    React.createElement("span", { className: "gc-label", style: { fontSize: 10.5, color: side.c } }, side.t),
+    React.createElement("span", { className: "gc-mono", style: { fontSize: 11, color: C.faint } },
+        "\u00B7 ",
+        count))); }
+function BoardColumn({ side, list, onPick, tr }) { return (React.createElement("div", null,
+    React.createElement(ColHeader, { side: side, count: list.length }),
+    React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 } }, list.length === 0 ? React.createElement("div", { style: { fontSize: 12, color: C.faint, padding: "10px 2px" } }, "\u2014") : list.map(g => React.createElement(GuestChip, { key: g.id, g: g, color: side.c, onPick: onPick, tr: tr }))))); }
+function GuestChip({ g, color, onPick, tr, wide }) {
+    const total = (g.questions || []).length;
+    const remaining = Math.max(0, total - (g.answered || []).length);
+    const allDone = total > 0 && remaining === 0;
+    return (React.createElement("button", { className: "gc-btn", onClick: () => onPick(g.id), style: { textAlign: "left", background: C.panel, border: "1px solid " + (allDone ? C.line : color), borderRadius: 14, padding: "15px 15px", width: wide ? "auto" : "100%", flex: wide ? "1 1 auto" : "none", opacity: allDone ? 0.6 : 1 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" } },
+            React.createElement("span", { style: { fontSize: 18.5, fontWeight: 800, color: C.text, lineHeight: 1.2 } }, tr(g.name) || "Mehmon"),
+            total > 0 && React.createElement("span", { className: "gc-mono", style: { fontSize: 13, fontWeight: 800, flexShrink: 0, minWidth: 27, height: 27, padding: "0 7px", borderRadius: 8, display: "inline-flex", alignItems: "center", justifyContent: "center", background: allDone ? "transparent" : color, color: allDone ? C.good : "#08131f" } }, allDone ? "✓" : remaining)),
+        g.title && React.createElement("div", { style: { fontSize: 13.5, color: C.muted, marginTop: 5, lineHeight: 1.4 } }, tr(g.title))));
+}
+function Fullscreen({ children }) { return (React.createElement("div", { className: "gc-scroll", style: { position: "fixed", inset: 0, zIndex: 60, background: "linear-gradient(180deg," + C.bg2 + "," + C.bg + ")", overflowY: "auto" } },
+    React.createElement("div", { className: "gc-pop", style: { maxWidth: 680, margin: "0 auto", padding: "18px 18px 120px", minHeight: "100%" } }, children))); }
+function ReaderTop({ label, color, script, setScript, onClose }) {
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16 } },
+        React.createElement("span", { className: "gc-label", style: { fontSize: 10.5, color } }, label),
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+            React.createElement(ScriptToggle, { script: script, setScript: setScript, compact: true }),
+            React.createElement("button", { className: "gc-btn", onClick: onClose, style: { background: C.panel, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 40, height: 40, fontSize: 21, lineHeight: 1 } }, "\u00D7"))));
+}
+function InfoReader({ block, index, tr, script, setScript, onClose, onDone }) {
+    return (React.createElement(Fullscreen, null,
+        React.createElement(ReaderTop, { label: "Efir ma'lumoti " + (index + 1), color: C.amber, script: script, setScript: setScript, onClose: onClose }),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } }, block.lines.map((l, i) => {
+            const isQiz = l.host === "qiz";
+            const col = isQiz ? C.qiz : C.yigit;
+            return (React.createElement("div", { key: i, style: { borderLeft: "4px solid " + col, paddingLeft: 16 } },
+                React.createElement("div", { className: "gc-label", style: { fontSize: 11, color: col, marginBottom: 7 } }, isQiz ? tr("QIZ") : tr("YIGIT")),
+                React.createElement("div", { style: { fontSize: 22, lineHeight: 1.5, fontWeight: 500, color: C.text } }, tr(l.text))));
+        })),
+        React.createElement("button", { className: "gc-btn", onClick: onDone, style: { width: "100%", marginTop: 26, background: "rgba(95,208,138,.14)", color: C.good, border: "1px solid rgba(95,208,138,.5)", borderRadius: 14, padding: "16px", fontSize: 15.5 } }, "OK \u00B7 o'qib bo'lindi")));
+}
+function QuestionReader({ guest, tr, script, setScript, onClose, onOk }) {
+    const color = sideColor(guest.side);
+    const total = (guest.questions || []).length;
+    const answered = guest.answered || [];
+    const remaining = (guest.questions || []).map((q, i) => ({ q, i })).filter(({ i }) => !answered.includes(i));
+    const facts = guest.facts || [];
+    return (React.createElement(Fullscreen, null,
+        React.createElement(ReaderTop, { label: "Mehmon savollari", color: color, script: script, setScript: setScript, onClose: onClose }),
+        React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 6 } },
+            React.createElement("span", { style: { width: 12, height: 12, borderRadius: 12, background: color, marginTop: 8, flexShrink: 0 } }),
+            React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                React.createElement("div", { className: "gc-mono", style: { fontSize: 26, fontWeight: 800, lineHeight: 1.12 } }, tr(guest.name) || "Mehmon"),
+                guest.title && React.createElement("div", { style: { fontSize: 14, color: C.muted, marginTop: 5 } }, tr(guest.title)))),
+        facts.length > 0 && (React.createElement("div", { style: { background: "rgba(246,178,61,.09)", border: "1px solid rgba(246,178,61,.4)", borderRadius: 14, padding: "14px 15px", margin: "16px 0 4px" } },
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.amber, marginBottom: 9 } }, "\uD83D\uDCA1 So'zlab ketish uchun faktlar"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, facts.map((f, i) => (React.createElement("div", { key: i, style: { display: "flex", gap: 9, fontSize: 15, lineHeight: 1.5, color: C.text } },
+                React.createElement("span", { style: { color: C.amber, flexShrink: 0 } }, "\u2022"),
+                React.createElement("span", null, tr(f)))))))),
+        React.createElement("div", { className: "gc-label", style: { fontSize: 10, color, margin: "18px 0 14px" } },
+            "Savollar \u00B7 ",
+            remaining.length,
+            " / ",
+            total,
+            " qoldi"),
+        remaining.length === 0 ? (React.createElement("div", { style: { textAlign: "center", padding: "40px 16px" } },
+            React.createElement("div", { style: { fontSize: 34, marginBottom: 12 } }, "\u2705"),
+            React.createElement("div", { className: "gc-mono", style: { fontSize: 19, fontWeight: 700 } }, tr("Barcha savollar berildi")),
+            React.createElement("button", { className: "gc-btn", onClick: onClose, style: { marginTop: 20, background: C.panelSoft, color: C.text, border: "1px solid " + C.line, borderRadius: 12, padding: "13px 24px", fontSize: 15 } }, "Yopish"))) : (React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } }, remaining.map(({ q, i }, pos) => (React.createElement("div", { key: i, className: "gc-pop", style: { background: pos === 0 ? C.panel : C.bg2, border: "1px solid " + (pos === 0 ? color : C.line), borderRadius: 16, padding: "18px 18px 16px" } },
+            React.createElement("div", { style: { display: "flex", gap: 13 } },
+                React.createElement("span", { className: "gc-mono", style: { fontSize: 16, fontWeight: 800, color, flexShrink: 0, marginTop: 4 } }, pos + 1),
+                React.createElement("div", { style: { fontSize: pos === 0 ? 23 : 20, lineHeight: 1.48, fontWeight: 500 } }, tr(q))),
+            React.createElement("button", { className: "gc-btn", onClick: () => onOk(i), style: { marginTop: 16, marginLeft: 29, background: "rgba(95,208,138,.14)", color: C.good, border: "1px solid rgba(95,208,138,.5)", borderRadius: 12, padding: "11px 20px", fontSize: 14 } }, "OK \u00B7 javob berildi"))))))));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
 </html>
