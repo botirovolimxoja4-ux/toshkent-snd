@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v20";
+const BUILD = "v21";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -208,9 +208,9 @@ async function callAI(prompt, opts) {
     const models = [];
     if (chosen)
         models.push(chosen);
-    ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"].forEach(function (m) { if (models.indexOf(m) < 0)
+    ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"].forEach(function (m) { if (models.indexOf(m) < 0)
         models.push(m); });
-    let lastErr = "";
+    let firstErr = "";
     for (let i = 0; i < models.length; i++) {
         try {
             const t = await callGeminiRaw(models[i], prompt, opts);
@@ -218,14 +218,16 @@ async function callAI(prompt, opts) {
             return t;
         }
         catch (e) {
-            lastErr = String(e && e.message || e);
-            LAST_AI_ERROR = "[" + models[i] + "] " + lastErr;
-            if (lastErr.indexOf("NOKEY") >= 0 || lastErr.indexOf("HTTP 401") >= 0 || lastErr.indexOf("Tarmoq") >= 0) {
-                throw new Error(lastErr);
+            const em = String(e && e.message || e);
+            if (!firstErr)
+                firstErr = "[" + models[i] + "] " + em;
+            LAST_AI_ERROR = firstErr;
+            if (em.indexOf("NOKEY") >= 0 || em.indexOf("HTTP 401") >= 0 || em.indexOf("Tarmoq") >= 0) {
+                throw new Error("[" + models[i] + "] " + em);
             }
         }
     }
-    throw new Error(lastErr || "Noma\u0027lum xato");
+    throw new Error(firstErr || "Noma\u0027lum xato");
 }
 function parseAny(text) {
     if (!text)
