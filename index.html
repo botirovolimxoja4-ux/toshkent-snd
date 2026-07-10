@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v18";
+const BUILD = "v19";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -510,8 +510,8 @@ function App() {
     const promptFor = g => {
         const lang = "o'zbek tilida (lotin alifbosida)";
         const who = (g.name || "mehmon") + (g.title ? ", " + g.title : "");
-        const rules = "Muhim qoidalar (qat'iy amal qil):\n- Savollar TANQIDIY, ayblovchi yoki \"gotcha\" bo'lmasin; mehmonni sira noqulay ahvolga solmasin.\n- Har bir savol mehmonga o'z sohasini, bilimini namoyish etish imkonini bersin — mehmon savoldan mamnun bo'lib, bemalol va to'liq javob bera olsin.\n- Ohang iliq, hurmatli va do'stona; mehmon mavzu bo'yicha yetuk mutaxassisdek ko'rinsin.\n- Savollar chuqur, mazmunli va aniq bo'lsin; umumiy emas. Bir-birini takrorlamasin.\n- HAR BIR SAVOL QISQA: bitta gap, 25 so'zdan oshmasin. Aynan 5 ta savol bo'lsin.";
-        const src = thesis.trim() ? "Quyidagi tezisni CHUQUR tahlil qilib, aynan shu mehmonning sohasiga (" + (g.title || "—") + ") tegishli, tezisdagi faktlarga asoslangan 5 ta savol tuz.\n\nTEZIS:\n" + thesis : "Tezis berilmagan. Shu mehmonning sohasi (" + (g.title || "—") + ") va \"" + (topic || "—") + "\" mavzusi bo'yicha aniq, faktlarga asoslangan 5 ta savol tuz.";
+        const rules = "Muhim qoidalar (qat'iy amal qil):\n- ENG MUHIM QOIDA: Har bir savol mehmonning ANIQ ROLI/LAVOZIMIGA (\"" + (g.title || "—") + "\") va uning shaxsiy nuqtai nazariga QAT'IY mos bo'lsin. Mehmon aynan o'z o'rnidan, o'z tajribasidan turib bemalol javob bera oladigan savol bo'lsin.\n- Rolni to'g'ri talqin qil: agar mehmon KASB EGASI/mutaxassis bo'lsa (mas. advokat, sudya, shifokor, olim, rahbar) — uning kasbiy bilimi va amaliyotiga oid savol ber. Agar mehmon JARAYON ISHTIROKCHISI yoki shu holatni boshidan kechirgan shaxs bo'lsa (mas. mahkum, jabrlanuvchi, fuqaro, bemor, talaba, guvoh) — uning SHAXSIY tajribasi, ko'rgan-kechirgani, hissiyoti va fikriga oid savol ber. Bunday mehmonga mutaxassislik yoki rasmiy bilim talab qiladigan savollarni BERMA.\n- Savollar TANQIDIY, ayblovchi yoki \"gotcha\" bo'lmasin; mehmon sira noqulay ahvolga tushmasin; ohang iliq, hurmatli, do'stona.\n- Savollar aniq va mazmunli, umumiy emas; bir-birini takrorlamasin.\n- HAR BIR SAVOL QISQA: bitta gap, 25 so'zdan oshmasin. Aynan 5 ta savol bo'lsin.";
+        const src = thesis.trim() ? "Quyidagi tezisni CHUQUR tahlil qilib, aynan shu mehmonning roli/lavozimi (\"" + (g.title || "—") + "\") NUQTAI NAZARIDAN javob berilishi mumkin bo'lgan 5 ta savol tuz.\n\nTEZIS:\n" + thesis : "Tezis berilmagan. \"" + (topic || "—") + "\" mavzusi bo'yicha, aynan shu mehmonning roli/lavozimi (\"" + (g.title || "—") + "\") NUQTAI NAZARIDAN javob berilishi mumkin bo'lgan 5 ta savol tuz.";
         const facts = "Bundan tashqari, boshlovchi suhbat orasida tashlab, mavzuni chuqur bilgandek ko'rinishi uchun 2-3 ta qiziqarli, aniq (raqam, sana yoki dalil) fakt tayyorla. Faktlar " + (thesis.trim() ? "tezisga" : "mavzuga") + " mos va ishonchli bo'lsin.";
         return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\". Mehmon: " + who + ".\n" + src + "\n\n" + rules + "\n\n" + facts + "\n\nJavobni FAQAT JSON ob'ekt ko'rinishida ber, boshqa hech narsa yozma:\n{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\",\"f3\"]}\nMatn " + lang + ".";
     };
