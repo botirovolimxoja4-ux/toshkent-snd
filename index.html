@@ -153,21 +153,23 @@ async function extractPdfText(file) {
     }
     return out.trim();
 }
-/* ---------- AI (Anthropic direct browser) ---------- */
+/* ---------- AI (Google Gemini) ---------- */
 async function callAI(prompt) {
     const key = LS.get("snd_apikey", "");
-    const model = LS.get("snd_model", "claude-sonnet-5");
+    const model = LS.get("snd_model", "gemini-2.0-flash");
     if (!key)
         throw new Error("NOKEY");
-    const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({ model, max_tokens: 1200, messages: [{ role: "user", content: prompt }] }) });
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key);
+    const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1600, temperature: 0.7 } }) });
     if (!res.ok) {
         const t = await res.text().catch(() => "");
-        throw new Error("API " + res.status + " " + t.slice(0, 140));
+        throw new Error("API " + res.status + " " + t.slice(0, 160));
     }
     const data = await res.json();
-    return (data.content || []).filter(b => b && b.type === "text").map(b => b.text).join("\n");
+    const cand = (data.candidates && data.candidates[0]) || null;
+    const parts = (cand && cand.content && cand.content.parts) || [];
+    return parts.map(p => p && p.text ? p.text : "").join("\n");
 }
 function parseAny(text) {
     if (!text)
@@ -362,7 +364,7 @@ function App() {
             return;
         }
         if (!LS.get("snd_apikey", "")) {
-            setErrMsg("Avval ⚙ Sozlamalarda Anthropic API kalitini kiriting.");
+            setErrMsg("Avval ⚙ Sozlamalarda Gemini API kalitini kiriting.");
             setSettings(true);
             return;
         }
@@ -405,7 +407,7 @@ function App() {
                 React.createElement(Header, { onSettings: () => setSettings(true) }),
                 !hasKey && React.createElement("div", { onClick: () => setSettings(true), style: { cursor: "pointer", background: "rgba(246,178,61,.10)", border: "1px solid rgba(246,178,61,.4)", borderRadius: 12, padding: "11px 13px", marginBottom: 14, fontSize: 12.5, color: C.text, lineHeight: 1.5 } },
                     "\u2699 Ishlash uchun Sozlamalarda ",
-                    React.createElement("b", null, "Anthropic API kaliti"),
+                    React.createElement("b", null, "Gemini API kaliti"),
                     "ni kiriting. Ko'p qurilmada sinxron efir uchun ",
                     React.createElement("b", null, "Firebase"),
                     " ham ulang."),
@@ -444,7 +446,7 @@ function Header({ onSettings }) {
 }
 function SettingsModal({ onClose }) {
     const [key, setKey] = useState(LS.get("snd_apikey", ""));
-    const [model, setModel] = useState(LS.get("snd_model", "claude-sonnet-5"));
+    const [model, setModel] = useState(LS.get("snd_model", "gemini-2.0-flash"));
     const [fb, setFb] = useState(JSON.stringify(LS.get("snd_fb", null) || "", null, 2) === '""' ? "" : JSON.stringify(LS.get("snd_fb", null), null, 2));
     const [msg, setMsg] = useState("");
     const save = () => {
@@ -470,11 +472,11 @@ function SettingsModal({ onClose }) {
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
                 React.createElement("span", { className: "gc-mono", style: { fontWeight: 800, fontSize: 18 } }, "Sozlamalar"),
                 React.createElement("button", { className: "gc-btn", onClick: onClose, style: { background: C.bg2, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 38, height: 38, fontSize: 20 } }, "\u00D7")),
-            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Anthropic API kaliti"),
-            React.createElement("input", { className: "gc-in", value: key, onChange: e => setKey(e.target.value), placeholder: "sk-ant-\u2026", style: { ...inStyle, marginBottom: 6 } }),
-            React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16 } }, "console.anthropic.com \u2192 API Keys. Kalit faqat shu qurilmada saqlanadi."),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Gemini API kaliti"),
+            React.createElement("input", { className: "gc-in", value: key, onChange: e => setKey(e.target.value), placeholder: "Gemini API kaliti\u2026", style: { ...inStyle, marginBottom: 6 } }),
+            React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16 } }, "aistudio.google.com/apikey \u2192 Create API key. Kalit faqat shu qurilmada saqlanadi."),
             React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Model"),
-            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "claude-sonnet-5", style: { ...inStyle, marginBottom: 16 } }),
+            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "gemini-2.0-flash", style: { ...inStyle, marginBottom: 16 } }),
             React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Firebase config (ko'p qurilma sinxroni uchun \u00B7 ixtiyoriy)"),
             React.createElement("textarea", { className: "gc-in", value: fb, onChange: e => setFb(e.target.value), placeholder: '{"apiKey":"\u2026","databaseURL":"https://\u2026","projectId":"\u2026"}', style: { ...inStyle, minHeight: 120, fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 } }),
             React.createElement("div", { style: { fontSize: 11, color: C.faint, margin: "8px 0 16px", lineHeight: 1.5 } }, "Bo'sh qolsa \u2014 faqat shu qurilmada ishlaydi. To'ldirilsa \u2014 shu configni ishlatgan barcha qurilmalarda efir sinxron bo'ladi."),
