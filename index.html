@@ -153,7 +153,7 @@ async function extractPdfText(file) {
     }
     return out.trim();
 }
-/* ---------- AI (Google Gemini) ---------- */
+/* ---------- AI (Anthropic direct browser) ---------- */
 async function callAI(prompt) {
     const key = LS.get("snd_apikey", "");
     const model = LS.get("snd_model", "gemini-2.0-flash");
@@ -170,6 +170,30 @@ async function callAI(prompt) {
     const cand = (data.candidates && data.candidates[0]) || null;
     const parts = (cand && cand.content && cand.content.parts) || [];
     return parts.map(p => p && p.text ? p.text : "").join("\n");
+}
+async function genGuest(promptFn, g) {
+    // try up to 2 times to get 5 questions; then a simpler fallback prompt
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const t = await callAI(promptFn(g, attempt));
+            const r = toGuest(t);
+            if (r.questions.length > 0)
+                return r;
+        }
+        catch (e) {
+            if (String(e.message).indexOf("NOKEY") >= 0)
+                throw e;
+        }
+    }
+    try {
+        const simple = "Menga o\u0027zbek tilida (lotin), \"" + ((g.title || "mutaxassis")) + "\" bo\u0027lgan mehmon uchun \"" + (LS.get("snd_topic", "") || "mavzu") + "\" mavzusida boshlovchi beradigan 5 ta iliq, hurmatli, tanqidiy bo\u0027lmagan savol yoz. Faqat 5 ta savolni, har birini yangi qatordan, raqamlab yoz.";
+        const t = await callAI(simple);
+        const qs = extractLines(t).slice(0, 5);
+        if (qs.length > 0)
+            return { questions: qs, facts: [] };
+    }
+    catch (e) { }
+    return { questions: [], facts: [] };
 }
 function parseAny(text) {
     if (!text)
@@ -226,6 +250,25 @@ function parseAny(text) {
         return null;
     }
 }
+function extractLines(text) {
+    // fallback: pull question-like lines out of free text
+    const raw = String(text || "").replace(/```[a-z]*|```/gi, " ");
+    let items = [];
+    raw.split(/\n+/).forEach(function (ln) {
+        let t = ln.trim();
+        t = t.replace(/^\s*[-*\u2022]\s*/, ""); // bullets
+        t = t.replace(/^\s*\d+[\).\.:\-]\s*/, ""); // 1) 1. 1-
+        t = t.replace(/^\s*["\u201c\u201d']+|["\u201c\u201d',]+\s*$/g, "");
+        if (t.length > 8 && /[\?\.\u2026]$|\?/.test(t) === true || (t.length > 12)) {
+            if (t.length > 8)
+                items.push(t);
+        }
+    });
+    // prefer lines that look like questions
+    const qs = items.filter(function (x) { return x.indexOf("?") >= 0; });
+    const base = (qs.length >= 3 ? qs : items);
+    return base.map(function (x) { return x.replace(/\s+/g, " ").trim(); }).filter(Boolean);
+}
 function toGuest(text) {
     const v = parseAny(text);
     let q = [], f = [];
@@ -234,6 +277,10 @@ function toGuest(text) {
     else if (v) {
         q = Array.isArray(v.questions) ? v.questions.map(String) : (Array.isArray(v.savollar) ? v.savollar.map(String) : []);
         f = Array.isArray(v.facts) ? v.facts.map(String) : (Array.isArray(v.faktlar) ? v.faktlar.map(String) : []);
+    }
+    if (q.length === 0) {
+        const guessed = extractLines(text);
+        q = guessed.slice(0, 5);
     }
     return { questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
 }
@@ -354,6 +401,7 @@ function App() {
     };
     const startBroadcast = async () => {
         setErrMsg("");
+        LS.set("snd_topic", topic);
         const active = guests.filter(g => (g.name || "").trim() || (g.title || "").trim());
         if (!topic.trim()) {
             setErrMsg("Avval mavzu nomini kiriting.");
@@ -376,7 +424,7 @@ function App() {
         const bump = () => { done += 1; setProgress({ done, total }); };
         try {
             const infoP = withThesis ? callAI(infoPrompt()).then(t => { bump(); return toInfos(t); }).catch(() => { bump(); return []; }) : Promise.resolve([]);
-            const guestP = active.map(g => callAI(promptFor(g)).then(t => { bump(); return { id: g.id, ...toGuest(t) }; }).catch(() => { bump(); return { id: g.id, questions: [], facts: [] }; }));
+            const guestP = active.map(g => genGuest((gg) => promptFor(gg), g).then(r => { bump(); return { id: g.id, questions: r.questions, facts: r.facts }; }).catch(() => { bump(); return { id: g.id, questions: [], facts: [] }; }));
             const [infoRes, guestRes] = await Promise.all([infoP, Promise.all(guestP)]);
             const qmap = {};
             guestRes.forEach(r => { qmap[r.id] = r; });
