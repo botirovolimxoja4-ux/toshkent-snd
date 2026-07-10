@@ -272,6 +272,29 @@ function toGuest(text) {
     }
     return { questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
 }
+async function genGuest(promptFn, g) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const t = await callAI(promptFn(g, attempt));
+            const r = toGuest(t);
+            if (r.questions.length > 0)
+                return r;
+        }
+        catch (e) {
+            if (String(e && e.message).indexOf("NOKEY") >= 0)
+                throw e;
+        }
+    }
+    try {
+        const simple = "O\u0027zbek tilida (lotin alifbosida), \"" + ((g.title || "mutaxassis")) + "\" bo\u0027lgan mehmon uchun \"" + (LS.get("snd_topic", "") || "mavzu") + "\" mavzusida boshlovchi beradigan 5 ta iliq, hurmatli, tanqidiy bo\u0027lmagan savol yoz. Faqat 5 ta savolni yoz, har birini yangi qatordan.";
+        const t = await callAI(simple);
+        const qs = extractLines(t).slice(0, 5);
+        if (qs.length > 0)
+            return { questions: qs, facts: [] };
+    }
+    catch (e) { }
+    return { questions: [], facts: [] };
+}
 function toInfos(text) {
     const v = parseAny(text);
     let bl = [];
