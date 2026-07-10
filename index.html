@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v13";
+const BUILD = "v14";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -484,8 +484,14 @@ function App() {
         const bump = () => { done += 1; setProgress({ done, total }); };
         try {
             const infoP = withThesis ? callAI(infoPrompt()).then(t => { bump(); return toInfos(t); }).catch(() => { bump(); return []; }) : Promise.resolve([]);
-            const guestP = active.map(g => genGuest((gg) => promptFor(gg), g).then(r => { bump(); return { id: g.id, questions: r.questions, facts: r.facts }; }).catch(() => { bump(); return { id: g.id, questions: [], facts: [] }; }));
+            const guestP = active.map(g => genGuest((gg) => promptFor(gg), g).then(r => { bump(); return { id: g.id, questions: r.questions, facts: r.facts }; }).catch((e) => { bump(); LAST_AI_ERROR = String(e && e.message || e); return { id: g.id, questions: [], facts: [] }; }));
             const [infoRes, guestRes] = await Promise.all([infoP, Promise.all(guestP)]);
+            const allEmpty = guestRes.length > 0 && guestRes.every(r => ((r.questions || []).length === 0));
+            if (allEmpty) {
+                setBusy(false);
+                setErrMsg("Savollar chiqmadi. Model: " + (LAST_MODEL_OK || LS.get("snd_model", "")) + "  |  Xato: " + (LAST_AI_ERROR || "yo\u0027q") + "  |  Javob: " + (LAST_RAW || "BO\u0027SH"));
+                return;
+            }
             const qmap = {};
             guestRes.forEach(r => { qmap[r.id] = r; });
             const bGuests = active.map(g => ({ id: g.id, name: g.name, title: g.title, side: g.side, questions: (qmap[g.id] || {}).questions || [], facts: (qmap[g.id] || {}).facts || [], answered: [] }));
