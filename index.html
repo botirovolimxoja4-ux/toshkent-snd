@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v17";
+const BUILD = "v18";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -161,7 +161,10 @@ let LAST_MODEL_OK = "";
 async function callGeminiRaw(model, prompt, opts) {
     const key = LS.get("snd_apikey", "");
     const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key);
-    const gen = { maxOutputTokens: 2048, temperature: 0.8 };
+    const gen = { maxOutputTokens: 8192, temperature: 0.8 };
+    if (/2\.5/.test(model)) {
+        gen.thinkingConfig = { thinkingBudget: 0 };
+    }
     if (opts && opts.json) {
         gen.responseMimeType = "application/json";
         if (opts.schema)
@@ -298,6 +301,53 @@ function extractLines(text) {
     const base = (qs.length >= 3 ? qs : items);
     return base.map(function (x) { return x.replace(/\s+/g, " ").trim(); }).filter(Boolean);
 }
+function salvageArray(text, keyName) {
+    // pull items of a JSON string array even if the JSON is truncated/invalid
+    try {
+        const re = new RegExp("\\\"" + keyName + "\\\"\\s*:\\s*\\[");
+        const m = re.exec(text);
+        if (!m)
+            return [];
+        let i = m.index + m[0].length;
+        const out = [];
+        let cur = "", inStr = false, esc = false, started = false;
+        for (; i < text.length; i++) {
+            const ch = text[i];
+            if (inStr) {
+                if (esc) {
+                    cur += ch;
+                    esc = false;
+                    continue;
+                }
+                if (ch === "\\") {
+                    esc = true;
+                    cur += ch;
+                    continue;
+                }
+                if (ch === '"') {
+                    inStr = false;
+                    out.push(cur);
+                    cur = "";
+                    continue;
+                }
+                cur += ch;
+            }
+            else {
+                if (ch === '"') {
+                    inStr = true;
+                    started = true;
+                    continue;
+                }
+                if (ch === "]")
+                    break;
+            }
+        }
+        return out.map(function (x) { return x.replace(/\\"/g, '"').replace(/\\n/g, " ").replace(/\\t/g, " ").replace(/\\\\/g, "\\").trim(); }).filter(Boolean);
+    }
+    catch (e) {
+        return [];
+    }
+}
 function toGuest(text) {
     const v = parseAny(text);
     let q = [], f = [];
@@ -306,6 +356,16 @@ function toGuest(text) {
     else if (v) {
         q = Array.isArray(v.questions) ? v.questions.map(String) : (Array.isArray(v.savollar) ? v.savollar.map(String) : []);
         f = Array.isArray(v.facts) ? v.facts.map(String) : (Array.isArray(v.faktlar) ? v.faktlar.map(String) : []);
+    }
+    if (q.length === 0) {
+        q = salvageArray(text, "questions");
+        if (q.length === 0)
+            q = salvageArray(text, "savollar");
+    }
+    if (f.length === 0) {
+        f = salvageArray(text, "facts");
+        if (f.length === 0)
+            f = salvageArray(text, "faktlar");
     }
     if (q.length === 0) {
         const guessed = extractLines(text);
@@ -450,7 +510,7 @@ function App() {
     const promptFor = g => {
         const lang = "o'zbek tilida (lotin alifbosida)";
         const who = (g.name || "mehmon") + (g.title ? ", " + g.title : "");
-        const rules = "Muhim qoidalar (qat'iy amal qil):\n- Savollar TANQIDIY, ayblovchi yoki \"gotcha\" bo'lmasin; mehmonni sira noqulay ahvolga solmasin.\n- Har bir savol mehmonga o'z sohasini, bilimini namoyish etish imkonini bersin — mehmon savoldan mamnun bo'lib, bemalol va to'liq javob bera olsin.\n- Ohang iliq, hurmatli va do'stona; mehmon mavzu bo'yicha yetuk mutaxassisdek ko'rinsin.\n- Savollar chuqur, mazmunli va aniq bo'lsin; umumiy emas. Bir-birini takrorlamasin.";
+        const rules = "Muhim qoidalar (qat'iy amal qil):\n- Savollar TANQIDIY, ayblovchi yoki \"gotcha\" bo'lmasin; mehmonni sira noqulay ahvolga solmasin.\n- Har bir savol mehmonga o'z sohasini, bilimini namoyish etish imkonini bersin — mehmon savoldan mamnun bo'lib, bemalol va to'liq javob bera olsin.\n- Ohang iliq, hurmatli va do'stona; mehmon mavzu bo'yicha yetuk mutaxassisdek ko'rinsin.\n- Savollar chuqur, mazmunli va aniq bo'lsin; umumiy emas. Bir-birini takrorlamasin.\n- HAR BIR SAVOL QISQA: bitta gap, 25 so'zdan oshmasin. Aynan 5 ta savol bo'lsin.";
         const src = thesis.trim() ? "Quyidagi tezisni CHUQUR tahlil qilib, aynan shu mehmonning sohasiga (" + (g.title || "—") + ") tegishli, tezisdagi faktlarga asoslangan 5 ta savol tuz.\n\nTEZIS:\n" + thesis : "Tezis berilmagan. Shu mehmonning sohasi (" + (g.title || "—") + ") va \"" + (topic || "—") + "\" mavzusi bo'yicha aniq, faktlarga asoslangan 5 ta savol tuz.";
         const facts = "Bundan tashqari, boshlovchi suhbat orasida tashlab, mavzuni chuqur bilgandek ko'rinishi uchun 2-3 ta qiziqarli, aniq (raqam, sana yoki dalil) fakt tayyorla. Faktlar " + (thesis.trim() ? "tezisga" : "mavzuga") + " mos va ishonchli bo'lsin.";
         return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\". Mehmon: " + who + ".\n" + src + "\n\n" + rules + "\n\n" + facts + "\n\nJavobni FAQAT JSON ob'ekt ko'rinishida ber, boshqa hech narsa yozma:\n{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\",\"f3\"]}\nMatn " + lang + ".";
