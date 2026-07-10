@@ -51,8 +51,32 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v21";
+const BUILD = "v22";
 const uid = () => Math.random().toString(36).slice(2, 10);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function sig(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+} return (h >>> 0).toString(36); }
+async function mapPool(items, limit, fn) {
+    const out = new Array(items.length);
+    let idx = 0;
+    async function worker() { while (idx < items.length) {
+        const i = idx++;
+        try {
+            out[i] = await fn(items[i], i);
+        }
+        catch (e) {
+            out[i] = undefined;
+        }
+        await sleep(400);
+    } }
+    const n = Math.max(1, Math.min(limit, items.length));
+    const workers = [];
+    for (let k = 0; k < n; k++)
+        workers.push(worker());
+    await Promise.all(workers);
+    return out;
+}
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
 const LS = {
@@ -212,18 +236,25 @@ async function callAI(prompt, opts) {
         models.push(m); });
     let firstErr = "";
     for (let i = 0; i < models.length; i++) {
-        try {
-            const t = await callGeminiRaw(models[i], prompt, opts);
-            LAST_MODEL_OK = models[i];
-            return t;
-        }
-        catch (e) {
-            const em = String(e && e.message || e);
-            if (!firstErr)
-                firstErr = "[" + models[i] + "] " + em;
-            LAST_AI_ERROR = firstErr;
-            if (em.indexOf("NOKEY") >= 0 || em.indexOf("HTTP 401") >= 0 || em.indexOf("Tarmoq") >= 0) {
-                throw new Error("[" + models[i] + "] " + em);
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                const t = await callGeminiRaw(models[i], prompt, opts);
+                LAST_MODEL_OK = models[i];
+                return t;
+            }
+            catch (e) {
+                const em = String(e && e.message || e);
+                if (!firstErr)
+                    firstErr = "[" + models[i] + "] " + em;
+                LAST_AI_ERROR = firstErr;
+                if (em.indexOf("NOKEY") >= 0 || em.indexOf("HTTP 401") >= 0 || em.indexOf("Tarmoq") >= 0) {
+                    throw new Error("[" + models[i] + "] " + em);
+                }
+                if (em.indexOf("HTTP 429") >= 0 && attempt === 0) {
+                    await sleep(9000);
+                    continue;
+                }
+                break;
             }
         }
     }
@@ -519,7 +550,7 @@ function App() {
     };
     const infoPrompt = () => {
         const lang = "o'zbek tilida (lotin alifbosida)";
-        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \"" + topic + "\".\nQuyidagi tezisning ENG MUHIM, teletomoshabinlarga yetkazilishi kerak bo'lgan qismlaridan 3 ta MA'LUMOT BLOKI tayyorla. Bu bloklar efirdagi bo'shliq paytida (har ~10 daqiqada) o'qib beriladi.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda tomoshabinlarga yetkazadigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap); har blok tezisning boshqa-boshqa muhim jihatiga bag'ishlansin.\nJavobni FAQAT JSON ko'rinishida ber. Format:\n[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...blok 2... ], [ ...blok 3... ]]\nMatn " + lang + ".\n\nTEZIS:\n" + thesis;
+        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \"" + topic + "\".\nQuyidagi tezis asosida efir davomida o'qib beriladigan AYNAN 3 ta MA'LUMOT BLOKI tayyorla. Bloklar tartibi QAT'IY quyidagicha bo'lsin:\n- 1-BLOK = KIRISH: mavzuga kirish, tezisning boshidagi asosiy tushuncha va nima haqida ekanini tanishtiradi (efir boshida o'qiladi).\n- 2-BLOK = O'RTA/MOHIYAT: tezisning o'rta qismidagi asosiy mexanizm, faktlar va muhim jihatlar (efir o'rtasida o'qiladi).\n- 3-BLOK = XULOSA: tezisning yakuniy qismi — kutilayotgan natijalar va umumiy xulosa (efir oxirida o'qiladi).\nMUHIM: xulosaviy ma'lumotni 1-blokka QO'YMA; kirish ma'lumotini 3-blokka qo'yma. Har blok o'z o'rniga mos bo'lsin.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda o'qiydigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap).\nJavobni FAQAT JSON ko'rinishida ber. Format:\n[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...2-blok... ], [ ...3-blok... ]]\nMatn " + lang + ".\n\nTEZIS:\n" + thesis;
     };
     const startBroadcast = async () => {
         setErrMsg("");
@@ -546,9 +577,37 @@ function App() {
         const bump = () => { done += 1; setProgress({ done, total }); };
         try {
             const infoP = withThesis ? callAI(infoPrompt()).then(t => { bump(); return toInfos(t); }).catch(() => { bump(); return []; }) : Promise.resolve([]);
-            const guestP = active.map(g => genGuest((gg) => promptFor(gg), g).then(r => { bump(); return { id: g.id, questions: r.questions, facts: r.facts }; }).catch((e) => { bump(); LAST_AI_ERROR = String(e && e.message || e); return { id: g.id, questions: [], facts: [] }; }));
-            const [infoRes, guestRes] = await Promise.all([infoP, Promise.all(guestP)]);
-            const allEmpty = guestRes.length > 0 && guestRes.every(r => ((r.questions || []).length === 0));
+            const cacheBase = (topic || "") + "|" + (thesis || "");
+            const genOne = async (g) => {
+                const ck = "qcache:" + sig(cacheBase + "|" + (g.name || "") + "|" + (g.title || ""));
+                try {
+                    const c = LS.get(ck, null);
+                    if (c && Array.isArray(c.questions) && c.questions.length) {
+                        return { id: g.id, questions: c.questions, facts: c.facts || [] };
+                    }
+                }
+                catch (e) { }
+                const r = await genGuest((gg) => promptFor(gg), g);
+                if (r && r.questions && r.questions.length) {
+                    try {
+                        LS.set(ck, { questions: r.questions, facts: r.facts });
+                    }
+                    catch (e) { }
+                }
+                return { id: g.id, questions: (r && r.questions) || [], facts: (r && r.facts) || [] };
+            };
+            const guestRes = await mapPool(active, 2, async (g) => { try {
+                const x = await genOne(g);
+                bump();
+                return x;
+            }
+            catch (e) {
+                bump();
+                LAST_AI_ERROR = String(e && e.message || e);
+                return { id: g.id, questions: [], facts: [] };
+            } });
+            const infoRes = await infoP;
+            const allEmpty = guestRes.length > 0 && guestRes.every(r => ((r && r.questions || []).length === 0));
             if (allEmpty) {
                 setBusy(false);
                 setErrMsg("Savollar chiqmadi. Model: " + (LAST_MODEL_OK || LS.get("snd_model", "")) + "  |  Xato: " + (LAST_AI_ERROR || "yo\u0027q") + "  |  Javob: " + (LAST_RAW || "BO\u0027SH"));
