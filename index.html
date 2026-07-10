@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v22";
+const BUILD = "v23";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function sig(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) {
@@ -407,6 +407,24 @@ function toGuest(text) {
     return { questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
 }
 const QSCHEMA = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } };
+const GROUPSCHEMA = { type: "ARRAY", items: { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } } };
+async function genGroup(promptText, guests) {
+    try {
+        const t = await callAI(promptText, { json: true, schema: GROUPSCHEMA });
+        let v = parseAny(t);
+        let arr = Array.isArray(v) ? v : (v && Array.isArray(v.mehmonlar) ? v.mehmonlar : (v && Array.isArray(v.guests) ? v.guests : []));
+        return guests.map(function (g, i) {
+            const item = (arr && arr[i]) || {};
+            let q = Array.isArray(item.questions) ? item.questions.map(String) : (Array.isArray(item.savollar) ? item.savollar.map(String) : []);
+            let f = Array.isArray(item.facts) ? item.facts.map(String) : (Array.isArray(item.faktlar) ? item.faktlar.map(String) : []);
+            return { id: g.id, questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
+        });
+    }
+    catch (e) {
+        LAST_AI_ERROR = String(e && e.message || e);
+        return guests.map(function (g) { return { id: g.id, questions: [], facts: [] }; });
+    }
+}
 async function genGuest(promptFn, g) {
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
@@ -548,6 +566,13 @@ function App() {
         const facts = "Bundan tashqari, boshlovchi suhbat orasida tashlab, mavzuni chuqur bilgandek ko'rinishi uchun 2-3 ta qiziqarli, aniq (raqam, sana yoki dalil) fakt tayyorla. Faktlar " + (thesis.trim() ? "tezisga" : "mavzuga") + " mos va ishonchli bo'lsin.";
         return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\". Mehmon: " + who + ".\n" + src + "\n\n" + rules + "\n\n" + facts + "\n\nJavobni FAQAT JSON ob'ekt ko'rinishida ber, boshqa hech narsa yozma:\n{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\",\"f3\"]}\nMatn " + lang + ".";
     };
+    const promptForGroup = (list) => {
+        const lang = "o'zbek tilida (lotin alifbosida)";
+        const rules = "Muhim qoidalar (qat'iy amal qil):\n- ENG MUHIM QOIDA: Har bir savol AYNAN SHU mehmonning roli/lavozimiga va shaxsiy nuqtai nazariga QAT'IY mos bo'lsin. Mehmon o'z o'rnidan, o'z tajribasidan turib bemalol javob bera oladigan savol bo'lsin.\n- Rolni to'g'ri talqin qil: agar mehmon KASB EGASI/mutaxassis bo'lsa (mas. advokat, sudya, shifokor, olim, rahbar) — kasbiy bilimi va amaliyotiga oid savol ber. Agar mehmon JARAYON ISHTIROKCHISI yoki shu holatni boshidan kechirgan shaxs bo'lsa (mas. mahkum, jabrlanuvchi, fuqaro, bemor, talaba, guvoh) — uning SHAXSIY tajribasi, hissiyoti va fikriga oid savol ber; unga mutaxassislik talab qiladigan savolni BERMA.\n- Savollar TANQIDIY yoki ayblovchi bo'lmasin; iliq, hurmatli; bir-birini takrorlamasin.\n- HAR BIR SAVOL QISQA: bitta gap, 25 so'zdan oshmasin. Har mehmonga AYNAN 5 ta savol.";
+        const ctx = thesis.trim() ? "Quyidagi TEZIS asosida, har bir mehmonning roli/lavozimi NUQTAI NAZARIDAN javob berilishi mumkin bo'lgan savollar tuz.\n\nTEZIS:\n" + thesis : "Tezis berilmagan. \"" + (topic || "—") + "\" mavzusi bo'yicha, har bir mehmonning roli/lavozimi NUQTAI NAZARIDAN savollar tuz.";
+        const gl = list.map((g, i) => ((i + 1) + ") Ismi: " + (g.name || "mehmon") + " — Lavozimi: " + (g.title || "—"))).join("\n");
+        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Mavzu: \"" + (topic || "—") + "\".\n" + ctx + "\n\n" + rules + "\n\nMEHMONLAR (tartib QAT'IY saqlansin):\n" + gl + "\n\nHar bir mehmon uchun AYNAN 5 ta savol va 2-3 ta aniq fakt tayyorla. Javobni FAQAT JSON MASSIV ko'rinishida ber: massivning har bir elementi yuqoridagi mehmonga AYNAN SHU TARTIBDA mos kelsin, massiv uzunligi " + list.length + " ta bo'lsin. Format:\n[{\"questions\":[\"s1\",\"s2\",\"s3\",\"s4\",\"s5\"],\"facts\":[\"f1\",\"f2\"]}]\nMatn " + lang + ".";
+    };
     const infoPrompt = () => {
         const lang = "o'zbek tilida (lotin alifbosida)";
         return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \"" + topic + "\".\nQuyidagi tezis asosida efir davomida o'qib beriladigan AYNAN 3 ta MA'LUMOT BLOKI tayyorla. Bloklar tartibi QAT'IY quyidagicha bo'lsin:\n- 1-BLOK = KIRISH: mavzuga kirish, tezisning boshidagi asosiy tushuncha va nima haqida ekanini tanishtiradi (efir boshida o'qiladi).\n- 2-BLOK = O'RTA/MOHIYAT: tezisning o'rta qismidagi asosiy mexanizm, faktlar va muhim jihatlar (efir o'rtasida o'qiladi).\n- 3-BLOK = XULOSA: tezisning yakuniy qismi — kutilayotgan natijalar va umumiy xulosa (efir oxirida o'qiladi).\nMUHIM: xulosaviy ma'lumotni 1-blokka QO'YMA; kirish ma'lumotini 3-blokka qo'yma. Har blok o'z o'rniga mos bo'lsin.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda o'qiydigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap).\nJavobni FAQAT JSON ko'rinishida ber. Format:\n[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...2-blok... ], [ ...3-blok... ]]\nMatn " + lang + ".\n\nTEZIS:\n" + thesis;
@@ -571,42 +596,54 @@ function App() {
         }
         const withThesis = thesis.trim().length > 0;
         setBusy(true);
-        const total = active.length + (withThesis ? 1 : 0);
-        setProgress({ done: 0, total });
-        let done = 0;
-        const bump = () => { done += 1; setProgress({ done, total }); };
         try {
-            const infoP = withThesis ? callAI(infoPrompt()).then(t => { bump(); return toInfos(t); }).catch(() => { bump(); return []; }) : Promise.resolve([]);
+            const infoP = withThesis ? callAI(infoPrompt()).then(t => { return toInfos(t); }).catch(() => { return []; }) : Promise.resolve([]);
             const cacheBase = (topic || "") + "|" + (thesis || "");
-            const genOne = async (g) => {
-                const ck = "qcache:" + sig(cacheBase + "|" + (g.name || "") + "|" + (g.title || ""));
+            const ckOf = (g) => "qcache:" + sig(cacheBase + "|" + (g.name || "") + "|" + (g.title || ""));
+            const resultById = {};
+            const uncached = [];
+            active.forEach(g => { try {
+                const c = LS.get(ckOf(g), null);
+                if (c && Array.isArray(c.questions) && c.questions.length) {
+                    resultById[g.id] = { id: g.id, questions: c.questions, facts: c.facts || [] };
+                    return;
+                }
+            }
+            catch (e) { } uncached.push(g); });
+            // chunk uncached guests into groups of 4 (one API request per group)
+            const groups = [];
+            for (let i = 0; i < uncached.length; i += 4)
+                groups.push(uncached.slice(i, i + 4));
+            const total = groups.length + (withThesis ? 1 : 0) + 1;
+            setProgress({ done: 0, total });
+            let done = 0;
+            const bump = () => { done += 1; setProgress({ done, total }); };
+            // run groups in parallel (max 3 at once) — big speedup vs one-by-one
+            const groupResults = await mapPool(groups, 3, async (grp) => { const arr = await genGroup(promptForGroup(grp), grp); bump(); return arr; });
+            groupResults.forEach(arr => { (arr || []).forEach(r => { if (r)
+                resultById[r.id] = r; }); });
+            // safety net: any guest still empty -> individual precise request
+            const stillEmpty = uncached.filter(g => !(resultById[g.id] && resultById[g.id].questions && resultById[g.id].questions.length));
+            if (stillEmpty.length) {
+                await mapPool(stillEmpty, 2, async (g) => { try {
+                    const r = await genGuest((gg) => promptFor(gg), g);
+                    if (r && r.questions && r.questions.length)
+                        resultById[g.id] = { id: g.id, questions: r.questions, facts: r.facts };
+                }
+                catch (e) {
+                    LAST_AI_ERROR = String(e && e.message || e);
+                } });
+            }
+            // cache newly generated guests
+            uncached.forEach(g => { const r = resultById[g.id]; if (r && r.questions && r.questions.length) {
                 try {
-                    const c = LS.get(ck, null);
-                    if (c && Array.isArray(c.questions) && c.questions.length) {
-                        return { id: g.id, questions: c.questions, facts: c.facts || [] };
-                    }
+                    LS.set(ckOf(g), { questions: r.questions, facts: r.facts });
                 }
                 catch (e) { }
-                const r = await genGuest((gg) => promptFor(gg), g);
-                if (r && r.questions && r.questions.length) {
-                    try {
-                        LS.set(ck, { questions: r.questions, facts: r.facts });
-                    }
-                    catch (e) { }
-                }
-                return { id: g.id, questions: (r && r.questions) || [], facts: (r && r.facts) || [] };
-            };
-            const guestRes = await mapPool(active, 2, async (g) => { try {
-                const x = await genOne(g);
-                bump();
-                return x;
-            }
-            catch (e) {
-                bump();
-                LAST_AI_ERROR = String(e && e.message || e);
-                return { id: g.id, questions: [], facts: [] };
             } });
             const infoRes = await infoP;
+            bump();
+            const guestRes = active.map(g => resultById[g.id] || { id: g.id, questions: [], facts: [] });
             const allEmpty = guestRes.length > 0 && guestRes.every(r => ((r && r.questions || []).length === 0));
             if (allEmpty) {
                 setBusy(false);
