@@ -51,6 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
+const BUILD = "v13";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -156,33 +157,72 @@ async function extractPdfText(file) {
 /* ---------- AI (Anthropic direct browser) ---------- */
 let LAST_AI_ERROR = "";
 let LAST_RAW = "";
-async function callAI(prompt) {
+let LAST_MODEL_OK = "";
+async function callGeminiRaw(model, prompt, opts) {
     const key = LS.get("snd_apikey", "");
-    const model = LS.get("snd_model", "gemini-2.0-flash");
-    if (!key)
-        throw new Error("NOKEY");
     const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key);
+    const gen = { maxOutputTokens: 2048, temperature: 0.8 };
+    if (opts && opts.json) {
+        gen.responseMimeType = "application/json";
+        if (opts.schema)
+            gen.responseSchema = opts.schema;
+    }
     let res;
     try {
-        res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1600, temperature: 0.7 } }) });
+        res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: gen }) });
     }
     catch (netErr) {
-        LAST_AI_ERROR = "Tarmoq xatosi: " + netErr.message;
-        throw netErr;
+        throw new Error("Tarmoq xatosi (internet yoki bloklangan): " + (netErr && netErr.message || netErr));
     }
+    const bodyText = await res.text().catch(function () { return ""; });
     if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        LAST_AI_ERROR = "HTTP " + res.status + ": " + t.slice(0, 220);
-        throw new Error("API " + res.status);
+        throw new Error("HTTP " + res.status + ": " + bodyText.slice(0, 240));
     }
-    const data = await res.json();
-    const cand = (data.candidates && data.candidates[0]) || null;
+    let data = null;
+    try {
+        data = JSON.parse(bodyText);
+    }
+    catch (e) {
+        return bodyText;
+    }
+    const cand = data && data.candidates && data.candidates[0];
     if (!cand) {
-        LAST_AI_ERROR = "Bo\u0027sh javob: " + JSON.stringify(data).slice(0, 220);
+        const br = (data && data.promptFeedback && data.promptFeedback.blockReason) || "";
+        throw new Error(br ? ("Bloklandi: " + br) : ("Bo\u0027sh javob: " + bodyText.slice(0, 180)));
     }
-    const parts = (cand && cand.content && cand.content.parts) || [];
-    return parts.map(p => p && p.text ? p.text : "").join("\n");
+    const parts = (cand.content && cand.content.parts) || [];
+    const txt = parts.map(function (pp) { return pp && pp.text ? pp.text : ""; }).join("\n");
+    if (!txt) {
+        throw new Error("Matn yo\u0027q (finishReason: " + (cand.finishReason || "?") + ")");
+    }
+    return txt;
+}
+async function callAI(prompt, opts) {
+    const key = LS.get("snd_apikey", "");
+    if (!key)
+        throw new Error("NOKEY");
+    const chosen = (LS.get("snd_model", "") || "").trim();
+    const models = [];
+    if (chosen)
+        models.push(chosen);
+    ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b", "gemini-2.0-flash-001"].forEach(function (m) { if (models.indexOf(m) < 0)
+        models.push(m); });
+    let lastErr = "";
+    for (let i = 0; i < models.length; i++) {
+        try {
+            const t = await callGeminiRaw(models[i], prompt, opts);
+            LAST_MODEL_OK = models[i];
+            return t;
+        }
+        catch (e) {
+            lastErr = String(e && e.message || e);
+            LAST_AI_ERROR = "[" + models[i] + "] " + lastErr;
+            if (lastErr.indexOf("NOKEY") >= 0 || lastErr.indexOf("HTTP 401") >= 0 || lastErr.indexOf("HTTP 403") >= 0 || lastErr.indexOf("HTTP 429") >= 0 || lastErr.indexOf("Tarmoq") >= 0) {
+                throw new Error(lastErr);
+            }
+        }
+    }
+    throw new Error(lastErr || "Noma\u0027lum xato");
 }
 function parseAny(text) {
     if (!text)
@@ -273,30 +313,35 @@ function toGuest(text) {
     }
     return { questions: q.filter(Boolean).slice(0, 5), facts: f.filter(Boolean).slice(0, 3) };
 }
+const QSCHEMA = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } };
 async function genGuest(promptFn, g) {
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
-            const t = await callAI(promptFn(g, attempt));
-            if (attempt === 0) {
+            const t = await callAI(promptFn(g, attempt), { json: true, schema: QSCHEMA });
+            if (attempt === 0)
                 LAST_RAW = String(t || "").slice(0, 400);
-            }
             const r = toGuest(t);
             if (r.questions.length > 0)
                 return r;
         }
         catch (e) {
-            if (String(e && e.message).indexOf("NOKEY") >= 0)
+            LAST_AI_ERROR = String(e && e.message || e);
+            if (LAST_AI_ERROR.indexOf("NOKEY") >= 0)
                 throw e;
         }
     }
     try {
-        const simple = "O\u0027zbek tilida (lotin alifbosida), \"" + ((g.title || "mutaxassis")) + "\" bo\u0027lgan mehmon uchun \"" + (LS.get("snd_topic", "") || "mavzu") + "\" mavzusida boshlovchi beradigan 5 ta iliq, hurmatli, tanqidiy bo\u0027lmagan savol yoz. Faqat 5 ta savolni yoz, har birini yangi qatordan.";
+        const simple = "O\u0027zbek tilida (lotin alifbosida), \"" + ((g.title || "mutaxassis")) + "\" bo\u0027lgan mehmon uchun \"" + (LS.get("snd_topic", "") || "mavzu") + "\" mavzusida boshlovchi beradigan 5 ta iliq, hurmatli, tanqidiy bo\u0027lmagan savol yoz. Har birini yangi qatordan, faqat savollarni yoz.";
         const t = await callAI(simple);
+        if (!LAST_RAW)
+            LAST_RAW = String(t || "").slice(0, 400);
         const qs = extractLines(t).slice(0, 5);
         if (qs.length > 0)
             return { questions: qs, facts: [] };
     }
-    catch (e) { }
+    catch (e) {
+        LAST_AI_ERROR = String(e && e.message || e);
+    }
     return { questions: [], facts: [] };
 }
 function toInfos(text) {
@@ -504,7 +549,7 @@ function Header({ onSettings }) {
         React.createElement("div", { style: { width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: "linear-gradient(135deg," + C.yigit + "," + C.qiz + ")", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Manrope", fontWeight: 800, color: "#08131f", fontSize: 15 } }, "SND"),
         React.createElement("div", { style: { flex: 1 } },
             React.createElement("div", { className: "gc-mono", style: { fontWeight: 800, fontSize: 22, letterSpacing: "-0.01em", lineHeight: 1 } }, "Toshkent SND"),
-            React.createElement("div", { className: "gc-label", style: { fontSize: 9.5, color: C.faint, marginTop: 5 } }, "Efir yordamchisi")),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 9.5, color: C.faint, marginTop: 5 } }, "Efir yordamchisi \u00B7 v13")),
         React.createElement("button", { className: "gc-btn", onClick: onSettings, title: "Sozlamalar", style: { background: C.panel, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 40, height: 40, fontSize: 18 } }, "\u2699")));
 }
 function SettingsModal({ onClose }) {
