@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v15";
+const BUILD = "v16";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -555,7 +555,9 @@ function Header({ onSettings }) {
         React.createElement("div", { style: { width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: "linear-gradient(135deg," + C.yigit + "," + C.qiz + ")", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Manrope", fontWeight: 800, color: "#08131f", fontSize: 15 } }, "SND"),
         React.createElement("div", { style: { flex: 1 } },
             React.createElement("div", { className: "gc-mono", style: { fontWeight: 800, fontSize: 22, letterSpacing: "-0.01em", lineHeight: 1 } }, "Toshkent SND"),
-            React.createElement("div", { className: "gc-label", style: { fontSize: 9.5, color: C.faint, marginTop: 5 } }, "Efir yordamchisi \u00B7 v13")),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 9.5, color: C.faint, marginTop: 5 } },
+                "Efir yordamchisi \u00B7 ",
+                BUILD)),
         React.createElement("button", { className: "gc-btn", onClick: onSettings, title: "Sozlamalar", style: { background: C.panel, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 40, height: 40, fontSize: 18 } }, "\u2699")));
 }
 function SettingsModal({ onClose }) {
