@@ -154,46 +154,34 @@ async function extractPdfText(file) {
     return out.trim();
 }
 /* ---------- AI (Anthropic direct browser) ---------- */
+let LAST_AI_ERROR = "";
 async function callAI(prompt) {
     const key = LS.get("snd_apikey", "");
     const model = LS.get("snd_model", "gemini-2.0-flash");
     if (!key)
         throw new Error("NOKEY");
     const url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + encodeURIComponent(key);
-    const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1600, temperature: 0.7 } }) });
+    let res;
+    try {
+        res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1600, temperature: 0.7 } }) });
+    }
+    catch (netErr) {
+        LAST_AI_ERROR = "Tarmoq xatosi: " + netErr.message;
+        throw netErr;
+    }
     if (!res.ok) {
         const t = await res.text().catch(() => "");
-        throw new Error("API " + res.status + " " + t.slice(0, 160));
+        LAST_AI_ERROR = "HTTP " + res.status + ": " + t.slice(0, 220);
+        throw new Error("API " + res.status);
     }
     const data = await res.json();
     const cand = (data.candidates && data.candidates[0]) || null;
+    if (!cand) {
+        LAST_AI_ERROR = "Bo\u0027sh javob: " + JSON.stringify(data).slice(0, 220);
+    }
     const parts = (cand && cand.content && cand.content.parts) || [];
     return parts.map(p => p && p.text ? p.text : "").join("\n");
-}
-async function genGuest(promptFn, g) {
-    // try up to 2 times to get 5 questions; then a simpler fallback prompt
-    for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-            const t = await callAI(promptFn(g, attempt));
-            const r = toGuest(t);
-            if (r.questions.length > 0)
-                return r;
-        }
-        catch (e) {
-            if (String(e.message).indexOf("NOKEY") >= 0)
-                throw e;
-        }
-    }
-    try {
-        const simple = "Menga o\u0027zbek tilida (lotin), \"" + ((g.title || "mutaxassis")) + "\" bo\u0027lgan mehmon uchun \"" + (LS.get("snd_topic", "") || "mavzu") + "\" mavzusida boshlovchi beradigan 5 ta iliq, hurmatli, tanqidiy bo\u0027lmagan savol yoz. Faqat 5 ta savolni, har birini yangi qatordan, raqamlab yoz.";
-        const t = await callAI(simple);
-        const qs = extractLines(t).slice(0, 5);
-        if (qs.length > 0)
-            return { questions: qs, facts: [] };
-    }
-    catch (e) { }
-    return { questions: [], facts: [] };
 }
 function parseAny(text) {
     if (!text)
