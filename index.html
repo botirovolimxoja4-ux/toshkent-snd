@@ -51,7 +51,7 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v16";
+const BUILD = "v17";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const inStyle = { width: "100%", background: C.bg2, border: "1px solid " + C.line, borderRadius: 11, padding: "12px 13px", fontSize: 14.5, color: C.text, fontFamily: "Inter,sans-serif" };
 /* ---------- local storage ---------- */
@@ -205,7 +205,7 @@ async function callAI(prompt, opts) {
     const models = [];
     if (chosen)
         models.push(chosen);
-    ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash-8b", "gemini-2.0-flash-001"].forEach(function (m) { if (models.indexOf(m) < 0)
+    ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"].forEach(function (m) { if (models.indexOf(m) < 0)
         models.push(m); });
     let lastErr = "";
     for (let i = 0; i < models.length; i++) {
@@ -217,7 +217,7 @@ async function callAI(prompt, opts) {
         catch (e) {
             lastErr = String(e && e.message || e);
             LAST_AI_ERROR = "[" + models[i] + "] " + lastErr;
-            if (lastErr.indexOf("NOKEY") >= 0 || lastErr.indexOf("HTTP 401") >= 0 || lastErr.indexOf("HTTP 403") >= 0 || lastErr.indexOf("HTTP 429") >= 0 || lastErr.indexOf("Tarmoq") >= 0) {
+            if (lastErr.indexOf("NOKEY") >= 0 || lastErr.indexOf("HTTP 401") >= 0 || lastErr.indexOf("Tarmoq") >= 0) {
                 throw new Error(lastErr);
             }
         }
@@ -562,7 +562,7 @@ function Header({ onSettings }) {
 }
 function SettingsModal({ onClose }) {
     const [key, setKey] = useState(LS.get("snd_apikey", ""));
-    const [model, setModel] = useState(LS.get("snd_model", "gemini-2.0-flash"));
+    const [model, setModel] = useState(LS.get("snd_model", "gemini-2.5-flash-lite"));
     const [fb, setFb] = useState(JSON.stringify(LS.get("snd_fb", null) || "", null, 2) === '""' ? "" : JSON.stringify(LS.get("snd_fb", null), null, 2));
     const [msg, setMsg] = useState("");
     const save = () => {
@@ -592,7 +592,7 @@ function SettingsModal({ onClose }) {
             React.createElement("input", { className: "gc-in", value: key, onChange: e => setKey(e.target.value), placeholder: "Gemini API kaliti\u2026", style: { ...inStyle, marginBottom: 6 } }),
             React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16 } }, "aistudio.google.com/apikey \u2192 Create API key. Kalit faqat shu qurilmada saqlanadi."),
             React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Model"),
-            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "gemini-2.0-flash", style: { ...inStyle, marginBottom: 16 } }),
+            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "gemini-2.5-flash-lite", style: { ...inStyle, marginBottom: 16 } }),
             React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Firebase config (ko'p qurilma sinxroni uchun \u00B7 ixtiyoriy)"),
             React.createElement("textarea", { className: "gc-in", value: fb, onChange: e => setFb(e.target.value), placeholder: '{"apiKey":"\u2026","databaseURL":"https://\u2026","projectId":"\u2026"}', style: { ...inStyle, minHeight: 120, fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 } }),
             React.createElement("div", { style: { fontSize: 11, color: C.faint, margin: "8px 0 16px", lineHeight: 1.5 } }, "Bo'sh qolsa \u2014 faqat shu qurilmada ishlaydi. To'ldirilsa \u2014 shu configni ishlatgan barcha qurilmalarda efir sinxron bo'ladi."),
