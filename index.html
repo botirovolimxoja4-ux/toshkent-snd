@@ -52,12 +52,12 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v27";
+const BUILD = "v28";
 // ============================================================
 //  SOZLAMALAR (⚙) PIN KODI — faqat siz bilasiz
 //  Pastdagi "2468" ni o'zingizning 4 xonali kodingizga o'zgartiring.
 //  Masalan:  const SETTINGS_PIN = "7391";
-const SETTINGS_PIN = "0890";
+const SETTINGS_PIN = "2468";
 // ============================================================
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -415,6 +415,28 @@ function toGuest(text) {
 }
 const QSCHEMA = { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } };
 const GROUPSCHEMA = { type: "OBJECT", properties: { guests: { type: "ARRAY", items: { type: "OBJECT", properties: { questions: { type: "ARRAY", items: { type: "STRING" } }, facts: { type: "ARRAY", items: { type: "STRING" } } } } } } };
+const INFOSCHEMA = { type: "OBJECT", properties: { blocks: { type: "ARRAY", items: { type: "ARRAY", items: { type: "OBJECT", properties: { host: { type: "STRING" }, text: { type: "STRING" } } } } } } };
+async function genInfos(promptText) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const t = await callAI(promptText, { json: true, schema: INFOSCHEMA });
+            const b = toInfos(t);
+            if (b.length > 0)
+                return b;
+        }
+        catch (e) {
+            LAST_AI_ERROR = String(e && e.message || e);
+        }
+    }
+    try {
+        const t = await callAI(promptText);
+        const b = toInfos(t);
+        if (b.length > 0)
+            return b;
+    }
+    catch (e) { }
+    return [];
+}
 async function genGroup(promptText, guests) {
     try {
         const t = await callAI(promptText, { json: true, schema: GROUPSCHEMA });
@@ -631,7 +653,7 @@ function App() {
     };
     const infoPrompt = () => {
         const lang = "o'zbek tilida (lotin alifbosida)";
-        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \"" + topic + "\".\nQuyidagi tezis asosida efir davomida o'qib beriladigan AYNAN 3 ta MA'LUMOT BLOKI tayyorla. Bloklar tartibi QAT'IY quyidagicha bo'lsin:\n- 1-BLOK = KIRISH: mavzuga kirish, tezisning boshidagi asosiy tushuncha va nima haqida ekanini tanishtiradi (efir boshida o'qiladi).\n- 2-BLOK = O'RTA/MOHIYAT: tezisning o'rta qismidagi asosiy mexanizm, faktlar va muhim jihatlar (efir o'rtasida o'qiladi).\n- 3-BLOK = XULOSA: tezisning yakuniy qismi — kutilayotgan natijalar va umumiy xulosa (efir oxirida o'qiladi).\nMUHIM: xulosaviy ma'lumotni 1-blokka QO'YMA; kirish ma'lumotini 3-blokka qo'yma. Har blok o'z o'rniga mos bo'lsin.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda o'qiydigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap).\nJavobni FAQAT JSON ko'rinishida ber. Format:\n[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...2-blok... ], [ ...3-blok... ]]\nMatn " + lang + ".\n\nTEZIS:\n" + thesis;
+        return "Sen \"Toshkent SND\" o'zbek teleko'rsatuvining tajribali muallifisan. Ko'rsatuv 30 daqiqa. Ikki boshlovchi: Yigit (erkak) va Qiz (ayol). Mavzu: \"" + topic + "\".\nQuyidagi tezis asosida efir davomida o'qib beriladigan AYNAN 3 ta MA'LUMOT BLOKI tayyorla. Bloklar tartibi QAT'IY quyidagicha bo'lsin:\n- 1-BLOK = KIRISH: mavzuga kirish, tezisning boshidagi asosiy tushuncha va nima haqida ekanini tanishtiradi (efir boshida o'qiladi).\n- 2-BLOK = O'RTA/MOHIYAT: tezisning o'rta qismidagi asosiy mexanizm, faktlar va muhim jihatlar (efir o'rtasida o'qiladi).\n- 3-BLOK = XULOSA: tezisning yakuniy qismi — kutilayotgan natijalar va umumiy xulosa (efir oxirida o'qiladi).\nMUHIM: xulosaviy ma'lumotni 1-blokka QO'YMA; kirish ma'lumotini 3-blokka qo'yma. Har blok o'z o'rniga mos bo'lsin.\nHar bir blok Yigit va Qiz navbatma-navbat (Yigit, Qiz, Yigit, Qiz) tarzda o'qiydigan 4 ta qatordan iborat bo'lsin.\nQoidalar: ohang iliq, ishonchli, savodli; har qator ravon (1-2 gap).\nJavobni FAQAT JSON OBYEKT ko'rinishida ber; ichida \"blocks\" massivi bo'lsin, unda AYNAN 3 ta blok, har blokda 4 ta qator. Format:\n{\"blocks\":[[{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"},{\"host\":\"yigit\",\"text\":\"...\"},{\"host\":\"qiz\",\"text\":\"...\"}], [ ...2-blok... ], [ ...3-blok... ]]}\nMatn " + lang + ".\n\nTEZIS:\n" + thesis;
     };
     const startBroadcast = async () => {
         setErrMsg("");
@@ -653,7 +675,7 @@ function App() {
         const withThesis = thesis.trim().length > 0;
         setBusy(true);
         try {
-            const infoP = withThesis ? callAI(infoPrompt()).then(t => { return toInfos(t); }).catch(() => { return []; }) : Promise.resolve([]);
+            const infoP = withThesis ? genInfos(infoPrompt()).catch(() => []) : Promise.resolve([]);
             const cacheBase = (topic || "") + "|" + (thesis || "");
             const ckOf = (g) => "qcache:" + sig(cacheBase + "|" + (g.name || "") + "|" + (g.title || ""));
             const resultById = {};
