@@ -11,6 +11,7 @@
 <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{ --bg:#0A1322; --bg2:#0E1B2E; }
 *{box-sizing:border-box;}
@@ -51,7 +52,13 @@ input::placeholder,textarea::placeholder{color:#6B819C;}
 "use strict";
 const { useState, useEffect, useRef } = React;
 const C = { bg: "#0A1322", bg2: "#0E1B2E", panel: "#12233B", panelSoft: "#172A46", line: "#263B54", text: "#EAF1F9", muted: "#93A7C0", faint: "#6B819C", qiz: "#FF7D93", yigit: "#4CC7F2", amber: "#F6B23D", good: "#5FD08A", bad: "#FF6B6B" };
-const BUILD = "v24";
+const BUILD = "v27";
+// ============================================================
+//  SOZLAMALAR (⚙) PIN KODI — faqat siz bilasiz
+//  Pastdagi "2468" ni o'zingizning 4 xonali kodingizga o'zgartiring.
+//  Masalan:  const SETTINGS_PIN = "7391";
+const SETTINGS_PIN = "0890";
+// ============================================================
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function sig(str) { let h = 0; const s = String(str); for (let i = 0; i < s.length; i++) {
@@ -474,6 +481,7 @@ function toInfos(text) {
 /* ---------- live store (Firebase or local) ---------- */
 const myId = uid();
 let fbOk = false, fbLiveRef = null;
+let sbClient = null, sbReady = false;
 let bc = ("BroadcastChannel" in window) ? new BroadcastChannel("toshkentsnd") : null;
 function initFirebase() {
     const cfg = LS.get("snd_fb", null);
@@ -494,37 +502,73 @@ function initFirebase() {
         return false;
     }
 }
-function publishLive(obj) {
-    const payload = { phase: obj.phase, broadcast: obj.broadcast || null, updatedBy: myId, updatedAt: Date.now() };
-    if (fbOk && fbLiveRef) {
-        fbLiveRef.set(payload).catch(() => { });
+function initSupabase() {
+    const cfg = LS.get("snd_sb", null);
+    if (!cfg || !cfg.url || !cfg.anon || !window.supabase) {
+        sbReady = false;
+        return false;
     }
-    else {
-        LS.set("snd_live", payload);
-        if (bc)
-            bc.postMessage(payload);
+    try {
+        sbClient = window.supabase.createClient(cfg.url, cfg.anon);
+        sbReady = true;
+        return true;
+    }
+    catch (e) {
+        console.warn("supabase init failed", e);
+        sbReady = false;
+        return false;
     }
 }
+function publishLive(obj) {
+    const payload = { phase: obj.phase, broadcast: obj.broadcast || null, updatedBy: myId, updatedAt: Date.now() };
+    if (sbReady && sbClient) {
+        try {
+            sbClient.from("snd_live").upsert({ id: 1, state: payload }).then(function () { }, function () { });
+        }
+        catch (e) { }
+        return;
+    }
+    if (fbOk && fbLiveRef) {
+        fbLiveRef.set(payload).catch(() => { });
+        return;
+    }
+    LS.set("snd_live", payload);
+    if (bc)
+        bc.postMessage(payload);
+}
 function subscribeLive(cb) {
+    if (sbReady && sbClient) {
+        try {
+            sbClient.from("snd_live").select("state").eq("id", 1).single().then(function (r) { if (r && r.data && r.data.state)
+                cb(r.data.state); }, function () { });
+        }
+        catch (e) { }
+        try {
+            sbClient.channel("snd_live_ch").on("postgres_changes", { event: "*", schema: "public", table: "snd_live", filter: "id=eq.1" }, function (p) { if (p && p.new && p.new.state)
+                cb(p.new.state); }).subscribe();
+        }
+        catch (e) { }
+        return;
+    }
     if (fbOk && fbLiveRef) {
         fbLiveRef.on("value", s => { const v = s.val(); if (v)
             cb(v); });
+        return;
     }
-    else {
-        const init = LS.get("snd_live", null);
-        if (init)
-            cb(init);
-        if (bc)
-            bc.onmessage = e => cb(e.data);
-        window.addEventListener("storage", e => { if (e.key === "snd_live" && e.newValue) {
-            try {
-                cb(JSON.parse(e.newValue));
-            }
-            catch (_) { }
-        } });
-    }
+    const init = LS.get("snd_live", null);
+    if (init)
+        cb(init);
+    if (bc)
+        bc.onmessage = e => cb(e.data);
+    window.addEventListener("storage", e => { if (e.key === "snd_live" && e.newValue) {
+        try {
+            cb(JSON.parse(e.newValue));
+        }
+        catch (_) { }
+    } });
 }
 initFirebase();
+initSupabase();
 const SIDES = [{ id: "right", t: "O'ng taraf", c: C.yigit }, { id: "left", t: "Chap taraf", c: C.qiz }, { id: "audience", t: "Auditoriya", c: C.amber }];
 const sideColor = id => (SIDES.find(s => s.id === id) || {}).c || C.amber;
 const Panel = ({ children, style }) => (React.createElement("div", { style: { background: C.panel, border: "1px solid " + C.line, borderRadius: 18, padding: 20, marginBottom: 14, ...style } }, children));
@@ -544,6 +588,18 @@ function App() {
     const [progress, setProgress] = useState({ done: 0, total: 0 });
     const [errMsg, setErrMsg] = useState("");
     const [settings, setSettings] = useState(false);
+    const [pinAsk, setPinAsk] = useState(false);
+    const [pinVal, setPinVal] = useState("");
+    const [pinErr, setPinErr] = useState(false);
+    const openSettings = () => { setPinVal(""); setPinErr(false); setPinAsk(true); };
+    const submitPin = () => { if (pinVal === SETTINGS_PIN) {
+        setPinAsk(false);
+        setSettings(true);
+    }
+    else {
+        setPinErr(true);
+        setPinVal("");
+    } };
     const liveTs = useRef(0);
     const hasKey = !!LS.get("snd_apikey", "");
     useEffect(() => { subscribeLive(s => { if (s.updatedAt !== liveTs.current && s.updatedBy !== myId) {
@@ -591,7 +647,7 @@ function App() {
         }
         if (!LS.get("snd_apikey", "")) {
             setErrMsg("Avval ⚙ Sozlamalarda Gemini API kalitini kiriting.");
-            setSettings(true);
+            openSettings();
             return;
         }
         const withThesis = thesis.trim().length > 0;
@@ -683,9 +739,17 @@ function App() {
     return (React.createElement("div", { className: "gc gc-bg" },
         React.createElement("div", { style: { maxWidth: 680, margin: "0 auto", padding: "22px 16px 60px" } },
             settings && React.createElement(SettingsModal, { onClose: () => setSettings(false) }),
+            pinAsk && (React.createElement("div", { onClick: () => setPinAsk(false), style: { position: "fixed", inset: 0, zIndex: 85, background: "rgba(4,9,17,.85)", display: "flex", justifyContent: "center", alignItems: "center", padding: "24px 14px" } },
+                React.createElement("div", { onClick: e => e.stopPropagation(), className: "gc-pop", style: { width: "100%", maxWidth: 320, background: C.panel, border: "1px solid " + C.line, borderRadius: 18, padding: 22, textAlign: "center" } },
+                    React.createElement("div", { className: "gc-mono", style: { fontWeight: 800, fontSize: 16, marginBottom: 4 } }, "PIN kod"),
+                    React.createElement("div", { style: { fontSize: 12, color: C.faint, marginBottom: 16 } }, "Sozlamalarni ochish uchun kodni kiriting"),
+                    React.createElement("input", { className: "gc-in", type: "password", inputMode: "numeric", pattern: "[0-9]*", maxLength: 4, autoFocus: true, value: pinVal, onChange: e => { setPinErr(false); setPinVal(e.target.value.replace(/[^0-9]/g, "").slice(0, 4)); }, onKeyDown: e => { if (e.key === "Enter")
+                            submitPin(); }, placeholder: "\u2022\u2022\u2022\u2022", style: { ...inStyle, textAlign: "center", fontSize: 26, letterSpacing: "0.4em", marginBottom: pinErr ? 6 : 14 } }),
+                    pinErr && React.createElement("div", { style: { fontSize: 12, color: C.qiz, marginBottom: 12 } }, "Kod noto'g'ri. Qayta urinib ko'ring."),
+                    React.createElement("button", { className: "gc-btn", onClick: submitPin, style: { width: "100%", background: "linear-gradient(135deg," + C.yigit + ",#3aa9d6)", color: "#08131f", borderRadius: 12, padding: "13px", fontSize: 15 } }, "Ochish")))),
             isLive ? (React.createElement(LiveView, { broadcast: broadcast, tr: tr, script: script, setScript: setScript, markAnswered: markAnswered, markInfoDone: markInfoDone, onEnd: endBroadcast })) : (React.createElement(React.Fragment, null,
-                React.createElement(Header, { onSettings: () => setSettings(true) }),
-                !hasKey && React.createElement("div", { onClick: () => setSettings(true), style: { cursor: "pointer", background: "rgba(246,178,61,.10)", border: "1px solid rgba(246,178,61,.4)", borderRadius: 12, padding: "11px 13px", marginBottom: 14, fontSize: 12.5, color: C.text, lineHeight: 1.5 } },
+                React.createElement(Header, { onSettings: openSettings }),
+                !hasKey && React.createElement("div", { onClick: openSettings, style: { cursor: "pointer", background: "rgba(246,178,61,.10)", border: "1px solid rgba(246,178,61,.4)", borderRadius: 12, padding: "11px 13px", marginBottom: 14, fontSize: 12.5, color: C.text, lineHeight: 1.5 } },
                     "\u2699 Ishlash uchun Sozlamalarda ",
                     React.createElement("b", null, "Gemini API kaliti"),
                     "ni kiriting. Ko'p qurilmada sinxron efir uchun ",
@@ -728,12 +792,19 @@ function Header({ onSettings }) {
 }
 function SettingsModal({ onClose }) {
     const [key, setKey] = useState(LS.get("snd_apikey", ""));
+    const [showKey, setShowKey] = useState(false);
+    const keyWasSaved = !!LS.get("snd_apikey", "");
     const [model, setModel] = useState(LS.get("snd_model", "gemini-2.5-flash-lite"));
+    const _sb = LS.get("snd_sb", null) || {};
+    const [sbUrl, setSbUrl] = useState(_sb.url || "");
+    const [sbAnon, setSbAnon] = useState(_sb.anon || "");
     const [fb, setFb] = useState(JSON.stringify(LS.get("snd_fb", null) || "", null, 2) === '""' ? "" : JSON.stringify(LS.get("snd_fb", null), null, 2));
     const [msg, setMsg] = useState("");
     const save = () => {
         LS.set("snd_apikey", key.trim());
-        LS.set("snd_model", (model.trim() || "claude-sonnet-5"));
+        LS.set("snd_model", (model.trim() || "gemini-2.5-flash-lite"));
+        const u = sbUrl.trim(), a = sbAnon.trim();
+        LS.set("snd_sb", (u && a) ? { url: u, anon: a } : null);
         let fbcfg = null;
         const raw = fb.trim();
         if (raw) {
@@ -754,14 +825,23 @@ function SettingsModal({ onClose }) {
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 } },
                 React.createElement("span", { className: "gc-mono", style: { fontWeight: 800, fontSize: 18 } }, "Sozlamalar"),
                 React.createElement("button", { className: "gc-btn", onClick: onClose, style: { background: C.bg2, color: C.muted, border: "1px solid " + C.line, borderRadius: 10, width: 38, height: 38, fontSize: 20 } }, "\u00D7")),
-            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Gemini API kaliti"),
-            React.createElement("input", { className: "gc-in", value: key, onChange: e => setKey(e.target.value), placeholder: "Gemini API kaliti\u2026", style: { ...inStyle, marginBottom: 6 } }),
-            React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16 } }, "aistudio.google.com/apikey \u2192 Create API key. Kalit faqat shu qurilmada saqlanadi."),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } },
+                "Gemini API kaliti ",
+                keyWasSaved && React.createElement("span", { style: { color: C.good } }, "\u00B7 saqlangan \u2713")),
+            React.createElement("div", { style: { position: "relative", marginBottom: 6 } },
+                React.createElement("input", { className: "gc-in", type: showKey ? "text" : "password", value: key, onChange: e => setKey(e.target.value), placeholder: "Gemini API kaliti\u2026", autoComplete: "off", style: { ...inStyle, paddingRight: 46, marginBottom: 0 } }),
+                React.createElement("button", { className: "gc-btn", onClick: () => setShowKey(v => !v), title: showKey ? "Yashirish" : "Ko'rsatish", style: { position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "transparent", border: "none", color: C.muted, fontSize: 16, width: 34, height: 34 } }, showKey ? "🙈" : "👁")),
+            React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16 } }, "Kalit yashirin saqlanadi (faqat nuqtalar ko'rinadi) va faqat shu qurilmada qoladi."),
             React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Model"),
-            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "gemini-2.5-flash-lite", style: { ...inStyle, marginBottom: 16 } }),
-            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.muted, marginBottom: 7 } }, "Firebase config (ko'p qurilma sinxroni uchun \u00B7 ixtiyoriy)"),
-            React.createElement("textarea", { className: "gc-in", value: fb, onChange: e => setFb(e.target.value), placeholder: '{"apiKey":"\u2026","databaseURL":"https://\u2026","projectId":"\u2026"}', style: { ...inStyle, minHeight: 120, fontFamily: "monospace", fontSize: 12, lineHeight: 1.5 } }),
-            React.createElement("div", { style: { fontSize: 11, color: C.faint, margin: "8px 0 16px", lineHeight: 1.5 } }, "Bo'sh qolsa \u2014 faqat shu qurilmada ishlaydi. To'ldirilsa \u2014 shu configni ishlatgan barcha qurilmalarda efir sinxron bo'ladi."),
+            React.createElement("input", { className: "gc-in", value: model, onChange: e => setModel(e.target.value), placeholder: "gemini-2.5-flash-lite", style: { ...inStyle, marginBottom: 18 } }),
+            React.createElement("div", { style: { height: 1, background: C.line, margin: "4px 0 16px" } }),
+            React.createElement("div", { className: "gc-label", style: { fontSize: 10, color: C.yigit, marginBottom: 7 } }, "Sinxron efir (Supabase \u00B7 barcha boshlovchilarda bir xil)"),
+            React.createElement("input", { className: "gc-in", value: sbUrl, onChange: e => setSbUrl(e.target.value), placeholder: "Project URL: https://xxxx.supabase.co", style: { ...inStyle, marginBottom: 6 } }),
+            React.createElement("input", { className: "gc-in", value: sbAnon, onChange: e => setSbAnon(e.target.value), placeholder: "anon public key (eyJhbG\u2026)", style: { ...inStyle, marginBottom: 6 } }),
+            React.createElement("div", { style: { fontSize: 11, color: C.faint, marginBottom: 16, lineHeight: 1.5 } }, "Ikkalasi to'ldirilsa \u2014 shu URL/kalitni ishlatgan barcha telefonlarda efir bir vaqtda ochiladi. Bo'sh qolsa \u2014 faqat shu qurilmada ishlaydi."),
+            React.createElement("details", { style: { marginBottom: 16 } },
+                React.createElement("summary", { style: { fontSize: 11, color: C.faint, cursor: "pointer" } }, "Firebase config (muqobil \u00B7 ixtiyoriy)"),
+                React.createElement("textarea", { className: "gc-in", value: fb, onChange: e => setFb(e.target.value), placeholder: '{"apiKey":"\u2026","databaseURL":"https://\u2026","projectId":"\u2026"}', style: { ...inStyle, minHeight: 100, fontFamily: "monospace", fontSize: 12, lineHeight: 1.5, marginTop: 8 } })),
             msg && React.createElement("div", { style: { fontSize: 12, color: C.good, marginBottom: 12 } }, msg),
             React.createElement("button", { className: "gc-btn", onClick: save, style: { width: "100%", background: "linear-gradient(135deg," + C.yigit + ",#3aa9d6)", color: "#08131f", borderRadius: 12, padding: "14px", fontSize: 15 } }, "Saqlash"))));
 }
